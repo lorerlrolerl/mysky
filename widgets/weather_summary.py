@@ -10,7 +10,8 @@ from kivy.metrics import dp
 from typing import Dict, List
 
 from widgets.weather_image_icon import WeatherImageIcon
-from widgets.ui_icon import UIIcon
+from constants import UIConstants, WeatherConstants
+from utils.debug import debug
 
 
 class WeatherSummary(BoxLayout):
@@ -20,9 +21,9 @@ class WeatherSummary(BoxLayout):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
         self.size_hint_y = None
-        self.height = dp(180)
-        self.padding = dp(20)
-        self.spacing = dp(15)
+        self.height = UIConstants.SUMMARY_HEIGHT
+        self.padding = UIConstants.PADDING['large']
+        self.spacing = UIConstants.SPACING['large']
 
         self._setup_ui()
         self._setup_graphics()
@@ -38,7 +39,7 @@ class WeatherSummary(BoxLayout):
 
         # Weather icon (left side)
         self.weather_icon = WeatherImageIcon(
-            icon_size=48,
+            icon_size=UIConstants.ICON_SIZES['large'],
             show_text=False,
             size_hint_x=0.2
         )
@@ -47,7 +48,7 @@ class WeatherSummary(BoxLayout):
         # Weather description (next to icon)
         self.weather_desc = Label(
             text='Clear',
-            font_size=dp(16),
+            font_size=UIConstants.FONT_SIZES['small'],
             color=(1, 1, 1, 1),
             size_hint_x=0.3,
             halign='left'
@@ -57,7 +58,7 @@ class WeatherSummary(BoxLayout):
         # Temperature range (right side)
         self.temp_range = Label(
             text='22°C / 18°C',
-            font_size=dp(20),
+            font_size=UIConstants.FONT_SIZES['normal'],
             bold=True,
             color=(1, 1, 1, 1),
             size_hint_x=0.5,
@@ -71,8 +72,9 @@ class WeatherSummary(BoxLayout):
         self.details_container = GridLayout(
             cols=5,  # 5 columns for the 5 weather metrics
             size_hint_y=0.4,
-            spacing=dp(5),
-            padding=[dp(10), dp(5), dp(10), dp(5)]
+            spacing=UIConstants.SPACING['small'],
+            padding=[UIConstants.PADDING['medium'], UIConstants.PADDING['small'],
+                    UIConstants.PADDING['medium'], UIConstants.PADDING['small']]
         )
 
         # Create table headers for weather metrics
@@ -81,12 +83,12 @@ class WeatherSummary(BoxLayout):
         self._create_metric_header('Wind Speed')
         self._create_metric_header('Total Rain')
         self._create_metric_header('Rain Chance')
-        
+
         # Create value rows for all weather data
-        self.temp_value = self._create_value_cell('--°C')
-        self.feels_like_value = self._create_value_cell('--°C')
-        self.wind_value = self._create_value_cell('-- km/h')
-        self.rain_value = self._create_value_cell('-- mm')
+        self.temp_value = self._create_value_cell(f'--{WeatherConstants.TEMP_UNIT}')
+        self.feels_like_value = self._create_value_cell(f'--{WeatherConstants.TEMP_UNIT}')
+        self.wind_value = self._create_value_cell(f'-- {WeatherConstants.WIND_UNIT}')
+        self.rain_value = self._create_value_cell(f'-- {WeatherConstants.RAIN_UNIT}')
         self.rain_chance_value = self._create_value_cell('--%')
 
         self.add_widget(self.details_container)
@@ -95,13 +97,13 @@ class WeatherSummary(BoxLayout):
         """Get weather description from weather code."""
         descriptions = {
             0: "Clear sky",
-            1: "Mainly clear", 
+            1: "Mainly clear",
             2: "Partly cloudy",
             3: "Overcast",
             45: "Fog",
             48: "Depositing rime fog",
             51: "Light drizzle",
-            53: "Moderate drizzle", 
+            53: "Moderate drizzle",
             55: "Dense drizzle",
             56: "Light freezing drizzle",
             57: "Dense freezing drizzle",
@@ -129,7 +131,7 @@ class WeatherSummary(BoxLayout):
         """Create a metric header cell."""
         header = Label(
             text=metric,
-            font_size=dp(10),
+            font_size=UIConstants.FONT_SIZES['very_small'],
             bold=True,
             color=(1, 1, 1, 0.9),
             size_hint_x=1,
@@ -141,14 +143,14 @@ class WeatherSummary(BoxLayout):
         """Create a value cell for weather data."""
         value_label = Label(
             text=value,
-            font_size=dp(11),
+            font_size=UIConstants.FONT_SIZES['very_small'],
             bold=True,
             color=(1, 1, 1, 1),
             size_hint_x=1,
             halign='center'
         )
         self.details_container.add_widget(value_label)
-        
+
         return value_label  # Return the value label for updating
 
     def _setup_graphics(self):
@@ -187,7 +189,7 @@ class WeatherSummary(BoxLayout):
         # Update temperature range
         temp_max = daily_summary.get('temp_max', 0)
         temp_min = daily_summary.get('temp_min', 0)
-        self.temp_range.text = f'{temp_max:.1f}°C / {temp_min:.1f}°C'
+        self.temp_range.text = f'{temp_max:.1f}{WeatherConstants.TEMP_UNIT} / {temp_min:.1f}{WeatherConstants.TEMP_UNIT}'
 
         # Check if this is today
         from datetime import datetime
@@ -208,15 +210,15 @@ class WeatherSummary(BoxLayout):
     def _update_today_summary(self, daily_summary: Dict, hourly_data: List[Dict]):
         """Update summary for today with current conditions."""
         from datetime import datetime
-        
+
         # Get current hour
         current_hour = datetime.now().hour
-        
+
         # Find current hour data
         current_temp = 0
         current_feels_like = 0
         current_wind = 0
-        
+
         if hourly_data:
             for hour_data in hourly_data:
                 hour_time = datetime.fromisoformat(hour_data['time'].replace('Z', '+00:00'))
@@ -225,7 +227,7 @@ class WeatherSummary(BoxLayout):
                     current_feels_like = hour_data.get('feels_like', 0)
                     current_wind = hour_data.get('wind_speed', 0)
                     break
-        
+
         # Fallback to daily averages if no current hour data
         if current_temp == 0:
             current_temp = (daily_summary.get('temp_max', 0) + daily_summary.get('temp_min', 0)) / 2
@@ -237,21 +239,27 @@ class WeatherSummary(BoxLayout):
         # Calculate rain chance from hourly data
         rain_chance = 0
         if hourly_data:
-            rainy_hours = sum(1 for h in hourly_data if h.get('precipitation', 0) > 0.5)
+            rainy_hours = sum(1 for h in hourly_data if h.get('precipitation', 0) > WeatherConstants.RAIN_THRESHOLD)
             rain_chance = (rainy_hours / len(hourly_data)) * 100
 
         # Get total rain for the day
         total_rain = daily_summary.get('precipitation_sum', 0)
 
         # Update rotated table with current conditions for today
-        self.temp_value.text = f'{current_temp:.1f}°C'
-        self.feels_like_value.text = f'{current_feels_like:.1f}°C'
-        self.wind_value.text = f'{current_wind:.1f} km/h'
-        self.rain_value.text = f'{total_rain:.1f} mm'
+        self.temp_value.text = f'{current_temp:.1f}{WeatherConstants.TEMP_UNIT}'
+        self.feels_like_value.text = f'{current_feels_like:.1f}{WeatherConstants.TEMP_UNIT}'
+        self.wind_value.text = f'{current_wind:.1f} {WeatherConstants.WIND_UNIT}'
+        self.rain_value.text = f'{total_rain:.1f} {WeatherConstants.RAIN_UNIT}'
         self.rain_chance_value.text = f'{rain_chance:.0f}%'
-        
-        print(f"DEBUG: TODAY TABLE - Temp: {current_temp:.1f}°C, Feels Like: {current_feels_like:.1f}°C, Wind: {current_wind:.1f} km/h")
-        print(f"DEBUG: TODAY TABLE - Total Rain: {total_rain:.1f} mm, Rain Chance: {rain_chance:.0f}%")
+
+        # Conditional debug output
+        if debug.enabled:
+            debug.print_section("Today's Weather Summary")
+            debug.print_info(f"Temperature: {current_temp:.1f}{WeatherConstants.TEMP_UNIT}")
+            debug.print_info(f"Feels Like: {current_feels_like:.1f}{WeatherConstants.TEMP_UNIT}")
+            debug.print_info(f"Wind Speed: {current_wind:.1f} {WeatherConstants.WIND_UNIT}")
+            debug.print_info(f"Total Rain: {total_rain:.1f} {WeatherConstants.RAIN_UNIT}")
+            debug.print_info(f"Rain Chance: {rain_chance:.0f}%")
 
     def _update_other_days_summary(self, daily_summary: Dict, hourly_data: List[Dict]):
         """Update summary for other days with averages and totals."""
@@ -259,12 +267,12 @@ class WeatherSummary(BoxLayout):
         avg_temp = 0
         avg_feels_like = 0
         max_wind = 0
-        
+
         if hourly_data:
             temps = [h.get('temperature', 0) for h in hourly_data]
             feels_likes = [h.get('feels_like', 0) for h in hourly_data]
             winds = [h.get('wind_speed', 0) for h in hourly_data]
-            
+
             avg_temp = sum(temps) / len(temps) if temps else 0
             avg_feels_like = sum(feels_likes) / len(feels_likes) if feels_likes else 0
             max_wind = max(winds) if winds else 0
@@ -277,21 +285,27 @@ class WeatherSummary(BoxLayout):
         # Calculate rain chance from hourly data
         rain_chance = 0
         if hourly_data:
-            rainy_hours = sum(1 for h in hourly_data if h.get('precipitation', 0) > 0.5)
+            rainy_hours = sum(1 for h in hourly_data if h.get('precipitation', 0) > WeatherConstants.RAIN_THRESHOLD)
             rain_chance = (rainy_hours / len(hourly_data)) * 100
 
         # Get total rain
         total_rain = daily_summary.get('precipitation_sum', 0)
 
         # Update rotated table with average data for other days
-        self.temp_value.text = f'{avg_temp:.1f}°C'
-        self.feels_like_value.text = f'{avg_feels_like:.1f}°C'
-        self.wind_value.text = f'{max_wind:.1f} km/h'
-        self.rain_value.text = f'{total_rain:.1f} mm'
+        self.temp_value.text = f'{avg_temp:.1f}{WeatherConstants.TEMP_UNIT}'
+        self.feels_like_value.text = f'{avg_feels_like:.1f}{WeatherConstants.TEMP_UNIT}'
+        self.wind_value.text = f'{max_wind:.1f} {WeatherConstants.WIND_UNIT}'
+        self.rain_value.text = f'{total_rain:.1f} {WeatherConstants.RAIN_UNIT}'
         self.rain_chance_value.text = f'{rain_chance:.0f}%'
-        
-        print(f"DEBUG: OTHER DAYS TABLE - Avg Temp: {avg_temp:.1f}°C, Avg Feels Like: {avg_feels_like:.1f}°C, Max Wind: {max_wind:.1f} km/h")
-        print(f"DEBUG: OTHER DAYS TABLE - Total Rain: {total_rain:.1f} mm, Rain Chance: {rain_chance:.0f}%")
+
+        # Conditional debug output
+        if debug.enabled:
+            debug.print_section("Other Days Weather Summary")
+            debug.print_info(f"Average Temperature: {avg_temp:.1f}{WeatherConstants.TEMP_UNIT}")
+            debug.print_info(f"Average Feels Like: {avg_feels_like:.1f}{WeatherConstants.TEMP_UNIT}")
+            debug.print_info(f"Max Wind Speed: {max_wind:.1f} {WeatherConstants.WIND_UNIT}")
+            debug.print_info(f"Total Rain: {total_rain:.1f} {WeatherConstants.RAIN_UNIT}")
+            debug.print_info(f"Rain Chance: {rain_chance:.0f}%")
 
     def clear_data(self):
         """Clear all weather data."""

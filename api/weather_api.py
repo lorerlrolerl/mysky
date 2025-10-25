@@ -10,31 +10,29 @@ from datetime import datetime, timedelta
 import time
 
 from utils.debug import debug
+from constants import APIConstants, CacheConstants
+from exceptions import NetworkError, APIResponseError, DataProcessingError
 
 
 class WeatherAPI:
     """Open-Meteo API client with built-in caching and retry logic."""
 
     def __init__(self):
-        # Configure cache with SQLite backend
+        # Configure cache with SQLite backend using constants
         self.cache_session = requests_cache.SQLiteCache(
-            '.cache/openmeteo_cache',
-            expire_after={
-                'forecast': timedelta(hours=1),
-                'geocoding': timedelta(hours=24),
-                'air_quality': timedelta(hours=1)
-            }
+            CacheConstants.CACHE_NAME,
+            expire_after=CacheConstants.EXPIRY_TIMES
         )
 
         # Create session with retry logic
         self.session = openmeteo_requests.Client()
 
-        # API endpoints
-        self.geocoding_url = "https://geocoding-api.open-meteo.com/v1/search"
-        self.forecast_url = "https://api.open-meteo.com/v1/forecast"
-        self.air_quality_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
+        # API endpoints using constants
+        self.geocoding_url = APIConstants.ENDPOINTS['geocoding']
+        self.forecast_url = APIConstants.ENDPOINTS['forecast']
+        self.air_quality_url = APIConstants.ENDPOINTS['air_quality']
 
-    def search_cities(self, query: str, count: int = 5) -> List[Dict]:
+    def search_cities(self, query: str, count: int = APIConstants.DEFAULT_CITY_COUNT) -> List[Dict]:
         """
         Search for cities using geocoding API.
 
@@ -59,7 +57,7 @@ class WeatherAPI:
             start_time = time.time()
             # Use requests directly for geocoding since it's not part of openmeteo-requests
             import requests
-            response = requests.get(self.geocoding_url, params=params)
+            response = requests.get(self.geocoding_url, params=params, timeout=APIConstants.TIMEOUT_SECONDS)
             response.raise_for_status()
             data = response.json()
             response_time = time.time() - start_time
@@ -79,10 +77,14 @@ class WeatherAPI:
             debug.print_city_search(query, cities)
             return cities
 
+        except requests.exceptions.RequestException as e:
+            debug.print_api_call("City Search", "error")
+            debug.print_error(f"Network error searching cities: {e}")
+            raise NetworkError(f"Failed to search cities: {e}", getattr(e.response, 'status_code', None))
         except Exception as e:
             debug.print_api_call("City Search", "error")
             debug.print_error(f"Error searching cities: {e}")
-            return []
+            raise APIResponseError(f"Error processing city search response: {e}")
 
     def get_weather_forecast(self, latitude: float, longitude: float) -> Optional[Dict]:
         """
@@ -118,11 +120,11 @@ class WeatherAPI:
                     "wind_direction_10m_dominant"
                 ],
                 "timezone": "auto",
-                "forecast_days": 16
+                "forecast_days": APIConstants.FORECAST_DAYS
             }
 
             start_time = time.time()
-            response = requests.get(self.forecast_url, params=params)
+            response = requests.get(self.forecast_url, params=params, timeout=APIConstants.TIMEOUT_SECONDS)
             response.raise_for_status()
             data = response.json()
             response_time = time.time() - start_time
@@ -190,10 +192,14 @@ class WeatherAPI:
 
             return result
 
+        except requests.exceptions.RequestException as e:
+            debug.print_api_call("Weather Forecast", "error")
+            debug.print_error(f"Network error fetching weather forecast: {e}")
+            raise NetworkError(f"Failed to fetch weather forecast: {e}", getattr(e.response, 'status_code', None))
         except Exception as e:
             debug.print_api_call("Weather Forecast", "error")
             debug.print_error(f"Error fetching weather forecast: {e}")
-            return None
+            raise DataProcessingError(f"Error processing weather forecast data: {e}")
 
     def get_air_quality(self, latitude: float, longitude: float) -> Optional[Dict]:
         """
@@ -222,7 +228,7 @@ class WeatherAPI:
             start_time = time.time()
             # Use requests directly for air quality
             import requests
-            response = requests.get(self.air_quality_url, params=params)
+            response = requests.get(self.air_quality_url, params=params, timeout=APIConstants.TIMEOUT_SECONDS)
             response.raise_for_status()
             data = response.json()
             response_time = time.time() - start_time
@@ -246,10 +252,14 @@ class WeatherAPI:
 
             return current_aq
 
+        except requests.exceptions.RequestException as e:
+            debug.print_api_call("Air Quality", "error")
+            debug.print_error(f"Network error fetching air quality: {e}")
+            raise NetworkError(f"Failed to fetch air quality: {e}", getattr(e.response, 'status_code', None))
         except Exception as e:
             debug.print_api_call("Air Quality", "error")
             debug.print_error(f"Error fetching air quality: {e}")
-            return None
+            raise DataProcessingError(f"Error processing air quality data: {e}")
 
     def _get_current_weather(self, daily_forecasts: Dict, daily_summaries: Dict) -> Dict:
         """Extract current weather from hourly data."""

@@ -16,6 +16,7 @@ import threading
 
 # ModernCurrentWeatherCard and ModernDayForecastCard imports removed
 from widgets.ui_icon import UIIcon
+from constants import UIConstants
 
 
 class ModernWeatherScreen(Screen):
@@ -73,9 +74,10 @@ class ModernWeatherScreen(Screen):
         self.header_container = BoxLayout(
             orientation='horizontal',
             size_hint_y=None,  # Use fixed height instead of percentage
-            height=dp(60),  # Fixed height in density-independent pixels
-            padding=[dp(20), dp(8), dp(20), dp(8)],
-            spacing=dp(15)
+            height=UIConstants.HEADER_HEIGHT,  # Use constant for height
+            padding=[UIConstants.PADDING['large'], UIConstants.PADDING['small'],
+                    UIConstants.PADDING['large'], UIConstants.PADDING['small']],
+            spacing=UIConstants.SPACING['large']
         )
 
         # Add glass effect to header
@@ -91,7 +93,7 @@ class ModernWeatherScreen(Screen):
         # Back button using UIIcon directly (no separate Button)
         self.back_button = UIIcon(
             icon_name='back',
-            size=dp(32),
+            size=UIConstants.ICON_SIZES['medium'],
             size_hint=(0.15, 0.8)  # 15% width, 80% height of container
         )
         self.back_button.bind(on_press=self._on_back_pressed)
@@ -100,7 +102,7 @@ class ModernWeatherScreen(Screen):
         # City name with beautiful typography - use remaining space with text scaling
         self.city_label = Label(
             text='Loading...',
-            font_size=dp(20),
+            font_size=UIConstants.FONT_SIZES['normal'],
             bold=True,
             color=(1, 1, 1, 1),
             size_hint=(0.7, 1),  # 70% width, full height
@@ -113,7 +115,7 @@ class ModernWeatherScreen(Screen):
         # Refresh button using UIIcon directly (no separate Button)
         self.refresh_button = UIIcon(
             icon_name='refresh',
-            size=dp(32),
+            size=UIConstants.ICON_SIZES['medium'],
             size_hint=(0.15, 0.8)  # 15% width, 80% height of container
         )
         self.refresh_button.bind(on_press=self._on_refresh_pressed)
@@ -133,15 +135,15 @@ class ModernWeatherScreen(Screen):
         # Available width for city name is approximately 70% of window width
         available_width = width * 0.7
 
-        # Scale font size based on available width
-        if available_width < 200:
-            font_size = dp(14)  # Very small
-        elif available_width < 300:
-            font_size = dp(16)  # Small
-        elif available_width < 400:
-            font_size = dp(18)  # Medium
+        # Scale font size based on available width using constants
+        if available_width < UIConstants.WINDOW_THRESHOLDS['very_small']:
+            font_size = UIConstants.FONT_SIZES['very_small']
+        elif available_width < UIConstants.WINDOW_THRESHOLDS['small']:
+            font_size = UIConstants.FONT_SIZES['small']
+        elif available_width < UIConstants.WINDOW_THRESHOLDS['medium']:
+            font_size = UIConstants.FONT_SIZES['medium']
         else:
-            font_size = dp(20)  # Normal
+            font_size = UIConstants.FONT_SIZES['normal']
 
         # Update city label font size
         if hasattr(self, 'city_label'):
@@ -163,9 +165,10 @@ class ModernWeatherScreen(Screen):
         self.weather_summary_container = BoxLayout(
             orientation='vertical',
             size_hint_y=None,  # Use fixed height instead of percentage
-            height=dp(200),  # Fixed height in density-independent pixels
-            spacing=dp(8),
-            padding=[dp(15), dp(8), dp(15), dp(8)]
+            height=UIConstants.SUMMARY_HEIGHT,  # Use constant for height
+            spacing=UIConstants.SPACING['small'],
+            padding=[UIConstants.PADDING['large'], UIConstants.PADDING['small'],
+                    UIConstants.PADDING['large'], UIConstants.PADDING['small']]
         )
 
         # Weather summary widget
@@ -194,9 +197,10 @@ class ModernWeatherScreen(Screen):
         self.nav_container = BoxLayout(
             orientation='horizontal',
             size_hint_y=None,  # Use fixed height instead of percentage
-            height=dp(50),  # Fixed height in density-independent pixels
-            padding=[dp(15), dp(8), dp(15), dp(8)],
-            spacing=dp(15)
+            height=UIConstants.NAV_HEIGHT,  # Use constant for height
+            padding=[UIConstants.PADDING['large'], UIConstants.PADDING['small'],
+                    UIConstants.PADDING['large'], UIConstants.PADDING['small']],
+            spacing=UIConstants.SPACING['large']
         )
 
         # Add glass effect
