@@ -1,6 +1,6 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {getCachedWeather, setCachedWeather} from '../services/cache';
-import {fetchWeather, Location, WeatherData} from '../services/openMeteo';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getCachedWeather, setCachedWeather } from "../services/cache";
+import { fetchWeather, Location, WeatherData } from "../services/openMeteo";
 
 export type WeatherState = {
   data?: WeatherData;
@@ -13,7 +13,7 @@ export type WeatherState = {
 
 export function useWeather(initialLocation?: Location): WeatherState {
   const [location, setLocationState] = useState<Location | undefined>(
-    initialLocation,
+    initialLocation
   );
   const [data, setData] = useState<WeatherData>();
   const [loading, setLoading] = useState<boolean>(Boolean(initialLocation));
@@ -56,7 +56,7 @@ export function useWeather(initialLocation?: Location): WeatherState {
       }
     } catch (err) {
       if (!abortController.signal.aborted) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        setError(err instanceof Error ? err.message : "Unknown error");
       }
     } finally {
       if (!abortController.signal.aborted) {

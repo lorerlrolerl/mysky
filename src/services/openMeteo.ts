@@ -1,4 +1,4 @@
-import {fetchWeatherApi} from 'openmeteo';
+import { fetchWeatherApi } from "openmeteo";
 
 export type Location = {
   id: string;
@@ -59,48 +59,48 @@ export type WeatherData = {
 };
 
 const currentVariables = [
-  'temperature_2m',
-  'relative_humidity_2m',
-  'apparent_temperature',
-  'precipitation',
-  'rain',
-  'weather_code',
-  'cloud_cover',
-  'wind_speed_10m',
-  'wind_direction_10m',
-  'showers',
-  'snowfall',
+  "temperature_2m",
+  "relative_humidity_2m",
+  "apparent_temperature",
+  "precipitation",
+  "rain",
+  "weather_code",
+  "cloud_cover",
+  "wind_speed_10m",
+  "wind_direction_10m",
+  "showers",
+  "snowfall",
 ] as const;
 
 const hourlyVariables = [
-  'temperature_2m',
-  'relative_humidity_2m',
-  'apparent_temperature',
-  'precipitation_probability',
-  'weather_code',
-  'visibility',
-  'wind_speed_10m',
-  'wind_direction_10m',
-  'uv_index',
-  'precipitation',
-  'rain',
-  'showers',
-  'snowfall',
-  'snow_depth',
+  "temperature_2m",
+  "relative_humidity_2m",
+  "apparent_temperature",
+  "precipitation_probability",
+  "weather_code",
+  "visibility",
+  "wind_speed_10m",
+  "wind_direction_10m",
+  "uv_index",
+  "precipitation",
+  "rain",
+  "showers",
+  "snowfall",
+  "snow_depth",
 ] as const;
 
 const dailyVariables = [
-  'weather_code',
-  'temperature_2m_max',
-  'temperature_2m_min',
-  'rain_sum',
-  'wind_speed_10m_max',
-  'precipitation_probability_max',
-  'showers_sum',
-  'snowfall_sum',
-  'precipitation_sum',
-  'precipitation_hours',
-  'uv_index_max',
+  "weather_code",
+  "temperature_2m_max",
+  "temperature_2m_min",
+  "rain_sum",
+  "wind_speed_10m_max",
+  "precipitation_probability_max",
+  "showers_sum",
+  "snowfall_sum",
+  "precipitation_sum",
+  "precipitation_hours",
+  "uv_index_max",
 ] as const;
 
 export async function fetchWeather(location: Location): Promise<WeatherData> {
@@ -113,7 +113,8 @@ export async function fetchWeather(location: Location): Promise<WeatherData> {
     daily: dailyVariables,
   };
 
-  const url = 'https://api.open-meteo.com/v1/forecast';
+  // Open-Meteo API is public and free, no API key needed
+  const url = "https://api.open-meteo.com/v1/forecast";
   const responses = await fetchWeatherApi(url, params);
   const response = responses[0];
   const utcOffsetSeconds = response.utcOffsetSeconds();
@@ -147,8 +148,8 @@ export async function fetchWeather(location: Location): Promise<WeatherData> {
         (_, i) =>
           new Date(
             (Number(hourly.time()) + i * hourly.interval() + utcOffsetSeconds) *
-              1000,
-          ),
+              1000
+          )
       ),
       temperature: hourly.variables(0)!.valuesArray(),
       relativeHumidity: hourly.variables(1)!.valuesArray(),
@@ -174,8 +175,8 @@ export async function fetchWeather(location: Location): Promise<WeatherData> {
         (_, i) =>
           new Date(
             (Number(daily.time()) + i * daily.interval() + utcOffsetSeconds) *
-              1000,
-          ),
+              1000
+          )
       ),
       weatherCode: daily.variables(0)!.valuesArray(),
       temperatureMax: daily.variables(1)!.valuesArray(),
@@ -200,17 +201,18 @@ export async function searchLocations(query: string): Promise<Location[]> {
 
   const params = new URLSearchParams({
     name: trimmed,
-    count: '5',
-    format: 'json',
-    language: 'en',
+    count: "5",
+    format: "json",
+    language: "en",
   });
 
+  // Open-Meteo geocoding API (public, no API key needed)
   const response = await fetch(
-    `https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`,
+    `https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`
   );
 
   if (!response.ok) {
-    throw new Error('Failed to fetch locations');
+    throw new Error("Failed to fetch locations");
   }
 
   const json = await response.json();

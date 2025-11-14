@@ -1,12 +1,12 @@
-import React from 'react';
-import {Dimensions, StyleSheet, View} from 'react-native';
+import React from "react";
+import { Dimensions, StyleSheet, View } from "react-native";
 import Svg, {
   Circle,
   Line,
   Polyline,
   Rect,
   Text as SvgText,
-} from 'react-native-svg';
+} from "react-native-svg";
 
 export type LineChartPoint = {
   label: string;
@@ -30,18 +30,18 @@ const defaultFormatter = (value: number) => value.toFixed(1);
 export function LineChart({
   points,
   height = 220,
-  color = '#0a84ff',
-  secondaryColor = '#ff9f0c',
+  color = "#0a84ff",
+  secondaryColor = "#ff9f0c",
   showSecondary = false,
   showDots = true,
   isDarkMode = false,
   valueFormatter = defaultFormatter,
 }: LineChartProps) {
   if (!points.length) {
-    return <View style={{height}} />;
+    return <View style={{ height }} />;
   }
 
-  const screenWidth = Dimensions.get('window').width;
+  const screenWidth = Dimensions.get("window").width;
   const padding = {
     top: 24,
     right: 24,
@@ -52,13 +52,13 @@ export function LineChart({
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
-  const primaryValues = points.map(point => point.value);
+  const primaryValues = points.map((point) => point.value);
   const secondaryValues = showSecondary
-    ? points.map(point => point.secondary ?? NaN)
+    ? points.map((point) => point.secondary ?? NaN)
     : [];
 
   const combinedValues = secondaryValues.length
-    ? primaryValues.concat(secondaryValues.filter(v => !Number.isNaN(v)))
+    ? primaryValues.concat(secondaryValues.filter((v) => !Number.isNaN(v)))
     : primaryValues;
 
   const rawMin = Math.min(...combinedValues);
@@ -101,27 +101,27 @@ export function LineChart({
 
   const polyline = primaryValues
     .map((value, index) => `${indexToX(index)},${valueToY(value)}`)
-    .join(' ');
+    .join(" ");
 
   const secondaryPolyline = showSecondary
     ? points
         .map((point, index) => {
-          if (typeof point.secondary !== 'number') {
+          if (typeof point.secondary !== "number") {
             return null;
           }
           return `${indexToX(index)},${valueToY(point.secondary)}`;
         })
         .filter(Boolean)
-        .join(' ')
-    : '';
+        .join(" ")
+    : "";
 
-  const axisColor = isDarkMode ? '#3a3a3c' : '#c7c7cc';
-  const textColor = isDarkMode ? '#d1d1d6' : '#3a3a3c';
+  const axisColor = isDarkMode ? "#3a3a3c" : "#c7c7cc";
+  const textColor = isDarkMode ? "#d1d1d6" : "#3a3a3c";
 
   const tickValues = [min, (min + max) / 2, max];
 
   return (
-    <View style={[styles.chartContainer, {height, width}]}>
+    <View style={[styles.chartContainer, { height, width }]}>
       <Svg height={height} width={width}>
         <Rect
           x={padding.left}
@@ -129,7 +129,7 @@ export function LineChart({
           width={chartWidth}
           height={chartHeight}
           fill={
-            isDarkMode ? 'rgba(118,118,128,0.12)' : 'rgba(118,118,128,0.08)'
+            isDarkMode ? "rgba(118,118,128,0.12)" : "rgba(118,118,128,0.08)"
           }
           rx={14}
         />
@@ -168,7 +168,8 @@ export function LineChart({
                 y={y + 4}
                 fill={textColor}
                 fontSize={11}
-                textAnchor="end">
+                textAnchor="end"
+              >
                 {valueFormatter(Number.isFinite(value) ? value : 0)}
               </SvgText>
             </React.Fragment>
@@ -204,7 +205,7 @@ export function LineChart({
           ))}
         {showSecondary &&
           points.map((point, index) => {
-            if (typeof point.secondary !== 'number') {
+            if (typeof point.secondary !== "number") {
               return null;
             }
             return (
@@ -228,7 +229,8 @@ export function LineChart({
               fill={textColor}
               fontSize={11}
               textAnchor="end"
-              transform={`rotate(-30 ${x} ${y})`}>
+              transform={`rotate(-30 ${x} ${y})`}
+            >
               {point.label}
             </SvgText>
           );
@@ -240,8 +242,8 @@ export function LineChart({
 
 const styles = StyleSheet.create({
   chartContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

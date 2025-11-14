@@ -1,4 +1,4 @@
-import {WeatherData} from './openMeteo';
+import { WeatherData } from "./openMeteo";
 
 type CacheEntry = {
   data: WeatherData;
