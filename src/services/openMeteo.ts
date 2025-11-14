@@ -13,48 +13,46 @@ export type Location = {
 export type WeatherData = {
   current: {
     time: Date;
-    temperature: number;
-    relativeHumidity: number;
-    apparentTemperature: number;
+    temperature_2m: number;
+    relative_humidity_2m: number;
+    apparent_temperature: number;
+    wind_speed_10m: number;
+    wind_direction_10m: number;
     precipitation: number;
-    rain: number;
-    weatherCode: number;
-    cloudCover: number;
-    windSpeed: number;
-    windDirection: number;
-    showers: number;
-    snowfall: number;
+    weather_code: number;
+    cloud_cover: number;
+    european_aqi?: number;
   };
   hourly: {
     time: Date[];
-    temperature: Float64Array;
-    relativeHumidity: Float64Array;
-    apparentTemperature: Float64Array;
-    precipitationProbability: Float64Array;
-    weatherCode: Float64Array;
-    visibility: Float64Array;
-    windSpeed: Float64Array;
-    windDirection: Float64Array;
-    uvIndex: Float64Array;
+    temperature_2m: Float64Array;
+    relative_humidity_2m: Float64Array;
+    apparent_temperature: Float64Array;
+    precipitation_probability: Float64Array;
+    weather_code: Float64Array;
+    wind_speed_10m: Float64Array;
+    cloud_cover: Float64Array;
     precipitation: Float64Array;
     rain: Float64Array;
     showers: Float64Array;
     snowfall: Float64Array;
-    snowDepth: Float64Array;
+    snow_depth: Float64Array;
+    visibility: Float64Array;
+    wind_gusts_10m: Float64Array;
+    wind_direction_10m: Float64Array;
+    european_aqi?: Float64Array;
   };
   daily: {
     time: Date[];
-    weatherCode: Float64Array;
-    temperatureMax: Float64Array;
-    temperatureMin: Float64Array;
-    rainSum: Float64Array;
-    windSpeedMax: Float64Array;
-    precipitationProbabilityMax: Float64Array;
-    showersSum: Float64Array;
-    snowfallSum: Float64Array;
-    precipitationSum: Float64Array;
-    precipitationHours: Float64Array;
-    uvIndexMax: Float64Array;
+    weather_code: Float64Array;
+    temperature_2m_max: Float64Array;
+    temperature_2m_min: Float64Array;
+    uv_index_max: Float64Array;
+    wind_speed_10m_max: Float64Array;
+    precipitation_sum: Float64Array;
+    precipitation_hours: Float64Array;
+    wind_direction_10m_dominant: Float64Array;
+    wind_gusts_10m_max: Float64Array;
   };
 };
 
@@ -62,14 +60,11 @@ const currentVariables = [
   "temperature_2m",
   "relative_humidity_2m",
   "apparent_temperature",
-  "precipitation",
-  "rain",
-  "weather_code",
-  "cloud_cover",
   "wind_speed_10m",
   "wind_direction_10m",
-  "showers",
-  "snowfall",
+  "precipitation",
+  "weather_code",
+  "cloud_cover",
 ] as const;
 
 const hourlyVariables = [
@@ -78,30 +73,72 @@ const hourlyVariables = [
   "apparent_temperature",
   "precipitation_probability",
   "weather_code",
-  "visibility",
   "wind_speed_10m",
-  "wind_direction_10m",
-  "uv_index",
+  "cloud_cover",
   "precipitation",
   "rain",
   "showers",
   "snowfall",
   "snow_depth",
+  "visibility",
+  "wind_gusts_10m",
+  "wind_direction_10m",
 ] as const;
 
 const dailyVariables = [
   "weather_code",
   "temperature_2m_max",
   "temperature_2m_min",
-  "rain_sum",
+  "uv_index_max",
   "wind_speed_10m_max",
-  "precipitation_probability_max",
-  "showers_sum",
-  "snowfall_sum",
   "precipitation_sum",
   "precipitation_hours",
-  "uv_index_max",
+  "wind_direction_10m_dominant",
+  "wind_gusts_10m_max",
 ] as const;
+
+export async function fetchAirQuality(
+  location: Location
+): Promise<{ current: number; hourly: Float64Array } | null> {
+  try {
+    const params = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      hourly: "european_aqi",
+      current: "european_aqi",
+    };
+
+    const url = "https://air-quality-api.open-meteo.com/v1/air-quality";
+    const responses = await fetchWeatherApi(url, params);
+    const response = responses[0];
+    const utcOffsetSeconds = response.utcOffsetSeconds();
+
+    const current = response.current()!;
+    const hourly = response.hourly()!;
+
+    const hourlyVar = hourly.variables(0);
+    if (!hourlyVar) {
+      return null;
+    }
+    const hourlyArray = hourlyVar.valuesArray();
+    if (!hourlyArray) {
+      return null;
+    }
+    // Convert to Float64Array if needed
+    const hourlyFloat64 = hourlyArray instanceof Float64Array
+      ? hourlyArray
+      : new Float64Array(hourlyArray);
+
+    return {
+      current: current.variables(0)!.value(),
+      hourly: hourlyFloat64,
+    };
+  } catch (error) {
+    // Air quality data might not be available for all locations
+    console.warn("Failed to fetch air quality data:", error);
+    return null;
+  }
+}
 
 export async function fetchWeather(location: Location): Promise<WeatherData> {
   const params = {
@@ -123,20 +160,21 @@ export async function fetchWeather(location: Location): Promise<WeatherData> {
   const hourly = response.hourly()!;
   const daily = response.daily()!;
 
+  // Fetch air quality data in parallel
+  const airQuality = await fetchAirQuality(location);
+
   return {
     current: {
       time: new Date((Number(current.time()) + utcOffsetSeconds) * 1000),
-      temperature: current.variables(0)!.value(),
-      relativeHumidity: current.variables(1)!.value(),
-      apparentTemperature: current.variables(2)!.value(),
-      precipitation: current.variables(3)!.value(),
-      rain: current.variables(4)!.value(),
-      weatherCode: current.variables(5)!.value(),
-      cloudCover: current.variables(6)!.value(),
-      windSpeed: current.variables(7)!.value(),
-      windDirection: current.variables(8)!.value(),
-      showers: current.variables(9)!.value(),
-      snowfall: current.variables(10)!.value(),
+      temperature_2m: current.variables(0)!.value(),
+      relative_humidity_2m: current.variables(1)!.value(),
+      apparent_temperature: current.variables(2)!.value(),
+      wind_speed_10m: current.variables(3)!.value(),
+      wind_direction_10m: current.variables(4)!.value(),
+      precipitation: current.variables(5)!.value(),
+      weather_code: current.variables(6)!.value(),
+      cloud_cover: current.variables(7)!.value(),
+      european_aqi: airQuality?.current,
     },
     hourly: {
       time: Array.from(
@@ -151,20 +189,22 @@ export async function fetchWeather(location: Location): Promise<WeatherData> {
               1000
           )
       ),
-      temperature: hourly.variables(0)!.valuesArray(),
-      relativeHumidity: hourly.variables(1)!.valuesArray(),
-      apparentTemperature: hourly.variables(2)!.valuesArray(),
-      precipitationProbability: hourly.variables(3)!.valuesArray(),
-      weatherCode: hourly.variables(4)!.valuesArray(),
-      visibility: hourly.variables(5)!.valuesArray(),
-      windSpeed: hourly.variables(6)!.valuesArray(),
-      windDirection: hourly.variables(7)!.valuesArray(),
-      uvIndex: hourly.variables(8)!.valuesArray(),
-      precipitation: hourly.variables(9)!.valuesArray(),
-      rain: hourly.variables(10)!.valuesArray(),
-      showers: hourly.variables(11)!.valuesArray(),
-      snowfall: hourly.variables(12)!.valuesArray(),
-      snowDepth: hourly.variables(13)!.valuesArray(),
+      temperature_2m: hourly.variables(0)!.valuesArray(),
+      relative_humidity_2m: hourly.variables(1)!.valuesArray(),
+      apparent_temperature: hourly.variables(2)!.valuesArray(),
+      precipitation_probability: hourly.variables(3)!.valuesArray(),
+      weather_code: hourly.variables(4)!.valuesArray(),
+      wind_speed_10m: hourly.variables(5)!.valuesArray(),
+      cloud_cover: hourly.variables(6)!.valuesArray(),
+      precipitation: hourly.variables(7)!.valuesArray(),
+      rain: hourly.variables(8)!.valuesArray(),
+      showers: hourly.variables(9)!.valuesArray(),
+      snowfall: hourly.variables(10)!.valuesArray(),
+      snow_depth: hourly.variables(11)!.valuesArray(),
+      visibility: hourly.variables(12)!.valuesArray(),
+      wind_gusts_10m: hourly.variables(13)!.valuesArray(),
+      wind_direction_10m: hourly.variables(14)!.valuesArray(),
+      european_aqi: airQuality?.hourly,
     },
     daily: {
       time: Array.from(
@@ -178,17 +218,15 @@ export async function fetchWeather(location: Location): Promise<WeatherData> {
               1000
           )
       ),
-      weatherCode: daily.variables(0)!.valuesArray(),
-      temperatureMax: daily.variables(1)!.valuesArray(),
-      temperatureMin: daily.variables(2)!.valuesArray(),
-      rainSum: daily.variables(3)!.valuesArray(),
-      windSpeedMax: daily.variables(4)!.valuesArray(),
-      precipitationProbabilityMax: daily.variables(5)!.valuesArray(),
-      showersSum: daily.variables(6)!.valuesArray(),
-      snowfallSum: daily.variables(7)!.valuesArray(),
-      precipitationSum: daily.variables(8)!.valuesArray(),
-      precipitationHours: daily.variables(9)!.valuesArray(),
-      uvIndexMax: daily.variables(10)!.valuesArray(),
+      weather_code: daily.variables(0)!.valuesArray(),
+      temperature_2m_max: daily.variables(1)!.valuesArray(),
+      temperature_2m_min: daily.variables(2)!.valuesArray(),
+      uv_index_max: daily.variables(3)!.valuesArray(),
+      wind_speed_10m_max: daily.variables(4)!.valuesArray(),
+      precipitation_sum: daily.variables(5)!.valuesArray(),
+      precipitation_hours: daily.variables(6)!.valuesArray(),
+      wind_direction_10m_dominant: daily.variables(7)!.valuesArray(),
+      wind_gusts_10m_max: daily.variables(8)!.valuesArray(),
     },
   };
 }

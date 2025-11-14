@@ -45,8 +45,7 @@ function formatSpeed(value: number | undefined) {
     return "—";
   }
 
-  const kmh = value * 3.6;
-  return `${kmh.toFixed(1)} km/h`;
+  return `${value.toFixed(1)} km/h`;
 }
 
 function averageArray(values: number[]) {
@@ -65,6 +64,7 @@ function formatTimeLabel(date: Date) {
   return date.toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -97,6 +97,34 @@ function formatDirection(value: number | undefined) {
   return `${directions[index]} (${Math.round(value)}°)`;
 }
 
+function formatAQI(value: number | undefined): string {
+  if (value == null || Number.isNaN(value)) {
+    return "—";
+  }
+
+  const aqi = Math.round(value);
+  if (aqi <= 20) return `${aqi} (Good)`;
+  if (aqi <= 40) return `${aqi} (Fair)`;
+  if (aqi <= 60) return `${aqi} (Moderate)`;
+  if (aqi <= 80) return `${aqi} (Poor)`;
+  if (aqi <= 100) return `${aqi} (Very Poor)`;
+  return `${aqi} (Extremely Poor)`;
+}
+
+function getAQIColor(value: number | undefined): string {
+  if (value == null || Number.isNaN(value)) {
+    return "#8e8e93";
+  }
+
+  const aqi = Math.round(value);
+  if (aqi <= 20) return "#34c759"; // Green - Good
+  if (aqi <= 40) return "#30d158"; // Light Green - Fair
+  if (aqi <= 60) return "#ffd60a"; // Yellow - Moderate
+  if (aqi <= 80) return "#ff9f0a"; // Orange - Poor
+  if (aqi <= 100) return "#ff453a"; // Red - Very Poor
+  return "#bf5af2"; // Purple - Extremely Poor
+}
+
 function dayKey(date: Date) {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -109,21 +137,26 @@ const HOURLY_TABS = [
   { key: "temperature", label: "Temperature" },
   { key: "precipitation", label: "Rain" },
   { key: "wind", label: "Wind" },
+  { key: "airquality", label: "Air Quality" },
 ] as const;
 
 type HourlyTabKey = (typeof HOURLY_TABS)[number]["key"];
 
 type HourlyPoint = {
   time: Date;
-  temperature: number;
-  feelsLike: number;
-  humidity: number;
+  temperature_2m: number;
+  apparent_temperature: number;
+  relative_humidity_2m: number;
   precipitation: number;
-  precipitationProbability: number;
+  precipitation_probability: number;
   rain: number;
-  windSpeed: number;
-  windDirection: number;
-  weatherCode: number;
+  wind_speed_10m: number;
+  wind_direction_10m: number;
+  weather_code: number;
+  showers: number;
+  snowfall: number;
+  snow_depth: number;
+  european_aqi?: number;
 };
 
 type HourlyDay = {
@@ -221,6 +254,9 @@ function App(): React.JSX.Element {
 
     const groups = new Map<string, HourlyPoint[]>();
     const order: string[] = [];
+    // Use the current time from weather data for accurate filtering
+    const currentTime = data.current.time;
+    const currentDayKey = dayKey(currentTime);
 
     data.hourly.time.forEach((time, index) => {
       const key = dayKey(time);
@@ -230,20 +266,30 @@ function App(): React.JSX.Element {
       }
       groups.get(key)?.push({
         time,
-        temperature: data.hourly.temperature[index],
-        feelsLike: data.hourly.apparentTemperature[index],
-        humidity: data.hourly.relativeHumidity[index],
+        temperature_2m: data.hourly.temperature_2m[index],
+        apparent_temperature: data.hourly.apparent_temperature[index],
+        relative_humidity_2m: data.hourly.relative_humidity_2m[index],
         precipitation: data.hourly.precipitation[index],
-        precipitationProbability: data.hourly.precipitationProbability[index],
+        precipitation_probability: data.hourly.precipitation_probability[index],
         rain: data.hourly.rain[index],
-        windSpeed: data.hourly.windSpeed[index],
-        windDirection: data.hourly.windDirection[index],
-        weatherCode: data.hourly.weatherCode[index],
+        wind_speed_10m: data.hourly.wind_speed_10m[index],
+        wind_direction_10m: data.hourly.wind_direction_10m[index],
+        weather_code: data.hourly.weather_code[index],
+        showers: data.hourly.showers[index],
+        snowfall: data.hourly.snowfall[index],
+        snow_depth: data.hourly.snow_depth[index],
+        european_aqi: data.hourly.european_aqi?.[index],
       });
     });
 
     return order.map((key) => {
-      const points = groups.get(key) ?? [];
+      let points = groups.get(key) ?? [];
+
+      // For the current day, filter to only show from current hour onwards
+      if (key === currentDayKey) {
+        points = points.filter((point) => point.time >= currentTime);
+      }
+
       const sample = points[0];
       const label = sample
         ? sample.time.toLocaleDateString(undefined, {
@@ -275,17 +321,13 @@ function App(): React.JSX.Element {
 
     return data.daily.time.map((time, index) => ({
       time,
-      weatherCode: data.daily.weatherCode[index],
-      tempMax: data.daily.temperatureMax[index],
-      tempMin: data.daily.temperatureMin[index],
-      rainSum: data.daily.rainSum[index],
-      precipSum: data.daily.precipitationSum[index],
-      precipHours: data.daily.precipitationHours[index],
-      showersSum: data.daily.showersSum[index],
-      snowfallSum: data.daily.snowfallSum[index],
-      precipProbMax: data.daily.precipitationProbabilityMax[index],
-      windMax: data.daily.windSpeedMax[index],
-      uvMax: data.daily.uvIndexMax[index],
+      weather_code: data.daily.weather_code[index],
+      tempMax: data.daily.temperature_2m_max[index],
+      tempMin: data.daily.temperature_2m_min[index],
+      precipSum: data.daily.precipitation_sum[index],
+      precipHours: data.daily.precipitation_hours[index],
+      windMax: data.daily.wind_speed_10m_max[index],
+      uvMax: data.daily.uv_index_max[index],
     }));
   }, [data]);
 
@@ -304,16 +346,16 @@ function App(): React.JSX.Element {
     }
 
     if (activeHourlyTab === "summary") {
-      const temperatures = activeDay.points.map((point) => point.temperature);
-      const feelsLike = activeDay.points.map((point) => point.feelsLike);
-      const humidity = activeDay.points.map((point) => point.humidity);
+      const temperatures = activeDay.points.map((point) => point.temperature_2m);
+      const feelsLike = activeDay.points.map((point) => point.apparent_temperature);
+      const humidity = activeDay.points.map((point) => point.relative_humidity_2m);
       const precipitation = activeDay.points.map(
         (point) => point.precipitation
       );
       const rain = activeDay.points.map((point) => point.rain);
-      const windSpeeds = activeDay.points.map((point) => point.windSpeed);
+      const windSpeeds = activeDay.points.map((point) => point.wind_speed_10m);
       const precipProb = activeDay.points.map(
-        (point) => point.precipitationProbability
+        (point) => point.precipitation_probability
       );
 
       const tempMin = Math.min(...temperatures);
@@ -328,9 +370,9 @@ function App(): React.JSX.Element {
       const maxWind = Math.max(...windSpeeds);
       const maxPrecipProb = Math.max(...precipProb);
       const avgDirection = averageDirection(
-        activeDay.points.map((point) => point.windDirection)
+        activeDay.points.map((point) => point.wind_direction_10m)
       );
-      const weatherCodes = activeDay.points.map((point) => point.weatherCode);
+      const weatherCodes = activeDay.points.map((point) => point.weather_code);
       const codeCounts = new Map<number, number>();
       weatherCodes.forEach((code) => {
         codeCounts.set(code, (codeCounts.get(code) || 0) + 1);
@@ -369,7 +411,7 @@ function App(): React.JSX.Element {
     }
 
     if (activeHourlyTab === "temperature") {
-      const temperatures = activeDay.points.map((point) => point.temperature);
+      const temperatures = activeDay.points.map((point) => point.temperature_2m);
       const min = Math.min(...temperatures);
       const max = Math.max(...temperatures);
       const average = averageArray(temperatures);
@@ -377,8 +419,8 @@ function App(): React.JSX.Element {
       return {
         points: activeDay.points.map((point) => ({
           label: formatTimeLabel(point.time),
-          value: point.temperature,
-          secondary: point.feelsLike,
+          value: point.temperature_2m,
+          secondary: point.apparent_temperature,
         })),
         formatter: (value) => formatTemperature(value),
         summaries: [
@@ -400,7 +442,7 @@ function App(): React.JSX.Element {
       );
       const maxRain = Math.max(...rainValues);
       const maxProbability = Math.max(
-        ...activeDay.points.map((point) => point.precipitationProbability)
+        ...activeDay.points.map((point) => point.precipitation_probability)
       );
 
       return {
@@ -426,27 +468,81 @@ function App(): React.JSX.Element {
       };
     }
 
-    const windSpeedsMs = activeDay.points.map((point) => point.windSpeed);
-    const windSpeedsKm = windSpeedsMs.map((value) => value * 3.6);
-    const avgSpeedMs = averageArray(windSpeedsMs);
-    const maxSpeedMs = Math.max(...windSpeedsMs);
-    const avgDirection = averageDirection(
-      activeDay.points.map((point) => point.windDirection)
-    );
+    if (activeHourlyTab === "wind") {
+      const windSpeeds = activeDay.points.map((point) => point.wind_speed_10m);
+      const avgSpeed = averageArray(windSpeeds);
+      const maxSpeed = Math.max(...windSpeeds);
+      const avgDirection = averageDirection(
+        activeDay.points.map((point) => point.wind_direction_10m)
+      );
 
+      return {
+        points: windSpeeds.map((value, index) => ({
+          label: formatTimeLabel(activeDay.points[index].time),
+          value,
+        })),
+        formatter: (value) => `${value.toFixed(1)} km/h`,
+        summaries: [
+          { label: "Average speed", value: formatSpeed(avgSpeed) },
+          { label: "Max speed", value: formatSpeed(maxSpeed) },
+          { label: "Dominant direction", value: formatDirection(avgDirection) },
+        ],
+        color: "#34c759",
+        showDots: true,
+        showSecondary: false,
+      };
+    }
+
+    if (activeHourlyTab === "airquality") {
+      const aqiValues = activeDay.points
+        .map((point) => point.european_aqi)
+        .filter((aqi): aqi is number => aqi != null && !Number.isNaN(aqi));
+
+      if (aqiValues.length === 0) {
+        return {
+          points: [],
+          formatter: (value) => value.toFixed(0),
+          summaries: [
+            { label: "Status", value: "No data available" },
+          ],
+          color: "#8e8e93",
+          showDots: false,
+          showSecondary: false,
+        };
+      }
+
+      const avgAQI = averageArray(aqiValues);
+      const minAQI = Math.min(...aqiValues);
+      const maxAQI = Math.max(...aqiValues);
+      const currentAQI = aqiValues[0];
+
+      return {
+        points: activeDay.points
+          .filter((point) => point.european_aqi != null && !Number.isNaN(point.european_aqi))
+          .map((point) => ({
+            label: formatTimeLabel(point.time),
+            value: point.european_aqi!,
+          })),
+        formatter: (value) => formatAQI(value),
+        summaries: [
+          { label: "Current", value: formatAQI(currentAQI) },
+          { label: "Average", value: formatAQI(avgAQI) },
+          { label: "Min", value: formatAQI(minAQI) },
+          { label: "Max", value: formatAQI(maxAQI) },
+        ],
+        color: getAQIColor(currentAQI),
+        showDots: true,
+        showSecondary: false,
+      };
+    }
+
+    // Default fallback (should not happen)
     return {
-      points: windSpeedsKm.map((value, index) => ({
-        label: formatTimeLabel(activeDay.points[index].time),
-        value,
-      })),
-      formatter: (value) => `${value.toFixed(1)} km/h`,
-      summaries: [
-        { label: "Average speed", value: formatSpeed(avgSpeedMs) },
-        { label: "Max speed", value: formatSpeed(maxSpeedMs) },
-        { label: "Dominant direction", value: formatDirection(avgDirection) },
-      ],
-      color: "#34c759",
-      showDots: true,
+      points: [],
+      formatter: (value) => value.toFixed(1),
+      summaries: [],
+      color: "#0a84ff",
+      showDots: false,
       showSecondary: false,
     };
   }, [activeDay, activeHourlyTab]);
@@ -620,7 +716,7 @@ function App(): React.JSX.Element {
                     <Text
                       style={[styles.value, isDarkMode && styles.valueDark]}
                     >
-                      {formatTemperature(data.current.temperature)}
+                      {formatTemperature(data.current.temperature_2m)}
                     </Text>
                   </View>
                   <View style={styles.row}>
@@ -632,7 +728,7 @@ function App(): React.JSX.Element {
                     <Text
                       style={[styles.value, isDarkMode && styles.valueDark]}
                     >
-                      {formatTemperature(data.current.apparentTemperature)}
+                      {formatTemperature(data.current.apparent_temperature)}
                     </Text>
                   </View>
                   <View style={styles.row}>
@@ -644,7 +740,7 @@ function App(): React.JSX.Element {
                     <Text
                       style={[styles.value, isDarkMode && styles.valueDark]}
                     >
-                      {formatPercentage(data.current.relativeHumidity)}
+                      {formatPercentage(data.current.relative_humidity_2m)}
                     </Text>
                   </View>
                   <View style={styles.row}>
@@ -656,7 +752,7 @@ function App(): React.JSX.Element {
                     <Text
                       style={[styles.value, isDarkMode && styles.valueDark]}
                     >
-                      {formatWeatherCode(data.current.weatherCode)}
+                      {formatWeatherCode(data.current.weather_code)}
                     </Text>
                   </View>
                   <View style={styles.row}>
@@ -668,7 +764,7 @@ function App(): React.JSX.Element {
                     <Text
                       style={[styles.value, isDarkMode && styles.valueDark]}
                     >
-                      {formatPercentage(data.current.cloudCover)}
+                      {formatPercentage(data.current.cloud_cover)}
                     </Text>
                   </View>
                   <View style={styles.row}>
@@ -681,8 +777,8 @@ function App(): React.JSX.Element {
                       style={[styles.value, isDarkMode && styles.valueDark]}
                     >
                       {`${formatSpeed(
-                        data.current.windSpeed
-                      )} · ${formatDirection(data.current.windDirection)}`}
+                        data.current.wind_speed_10m
+                      )} · ${formatDirection(data.current.wind_direction_10m)}`}
                     </Text>
                   </View>
                   <View style={styles.row}>
@@ -694,37 +790,27 @@ function App(): React.JSX.Element {
                     <Text
                       style={[styles.value, isDarkMode && styles.valueDark]}
                     >
-                      {formatMillimetres(data.current.rain)}
+                      {formatMillimetres(data.current.precipitation)}
                     </Text>
                   </View>
-                  {todayDaily && (
+                  {data.current.european_aqi != null && (
                     <View style={styles.row}>
                       <Text
                         style={[styles.label, isDarkMode && styles.labelDark]}
                       >
-                        Rain probability
+                        Air Quality
                       </Text>
                       <Text
-                        style={[styles.value, isDarkMode && styles.valueDark]}
+                        style={[
+                          styles.value,
+                          isDarkMode && styles.valueDark,
+                          { color: getAQIColor(data.current.european_aqi) },
+                        ]}
                       >
-                        {formatPercentage(todayDaily.precipProbMax)}
+                        {formatAQI(data.current.european_aqi)}
                       </Text>
                     </View>
                   )}
-                  <View style={styles.row}>
-                    <Text
-                      style={[styles.label, isDarkMode && styles.labelDark]}
-                    >
-                      Showers / Snowfall
-                    </Text>
-                    <Text
-                      style={[styles.value, isDarkMode && styles.valueDark]}
-                    >
-                      {`${formatMillimetres(
-                        data.current.showers
-                      )} • ${formatMillimetres(data.current.snowfall)}`}
-                    </Text>
-                  </View>
                 </View>
 
                 <View>

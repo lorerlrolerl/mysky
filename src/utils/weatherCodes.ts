@@ -50,5 +50,5 @@ export function getWeatherCondition(code: number): WeatherCondition {
 
 export function formatWeatherCode(code: number): string {
   const condition = getWeatherCondition(code);
-  return `${condition.icon} ${condition.description} (${code})`;
+  return `${condition.icon} ${condition.description}`;
 }

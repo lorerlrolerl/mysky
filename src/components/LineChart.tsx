@@ -43,12 +43,12 @@ export function LineChart({
 
   const screenWidth = Dimensions.get("window").width;
   const padding = {
-    top: 24,
+    top: 40,
     right: 24,
-    bottom: 36,
-    left: 52,
+    bottom: 60,
+    left: 24,
   };
-  const width = Math.max(points.length * 48, screenWidth - 64);
+  const width = Math.max(points.length * 72, screenWidth - 64);
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
@@ -118,8 +118,6 @@ export function LineChart({
   const axisColor = isDarkMode ? "#3a3a3c" : "#c7c7cc";
   const textColor = isDarkMode ? "#d1d1d6" : "#3a3a3c";
 
-  const tickValues = [min, (min + max) / 2, max];
-
   return (
     <View style={[styles.chartContainer, { height, width }]}>
       <Svg height={height} width={width}>
@@ -133,48 +131,6 @@ export function LineChart({
           }
           rx={14}
         />
-        <Line
-          x1={padding.left}
-          y1={padding.top + chartHeight}
-          x2={padding.left + chartWidth}
-          y2={padding.top + chartHeight}
-          stroke={axisColor}
-          strokeWidth={1}
-        />
-        <Line
-          x1={padding.left}
-          y1={padding.top}
-          x2={padding.left}
-          y2={padding.top + chartHeight}
-          stroke={axisColor}
-          strokeWidth={1}
-        />
-        {tickValues.map((value, index) => {
-          const y = valueToY(value);
-          return (
-            <React.Fragment key={`tick-${index}`}>
-              <Line
-                x1={padding.left}
-                y1={y}
-                x2={padding.left + chartWidth}
-                y2={y}
-                stroke={axisColor}
-                strokeDasharray="4 6"
-                strokeWidth={0.5}
-                opacity={index === 0 || index === 2 ? 0.6 : 0.35}
-              />
-              <SvgText
-                x={padding.left - 8}
-                y={y + 4}
-                fill={textColor}
-                fontSize={11}
-                textAnchor="end"
-              >
-                {valueFormatter(Number.isFinite(value) ? value : 0)}
-              </SvgText>
-            </React.Fragment>
-          );
-        })}
         {secondaryPolyline.length > 0 && (
           <Polyline
             points={secondaryPolyline}
@@ -220,19 +176,52 @@ export function LineChart({
           })}
         {points.map((point, index) => {
           const x = indexToX(index);
-          const y = padding.top + chartHeight + 18;
+          const y = valueToY(point.value);
+
+          // Hour label on top
+          const hourY = padding.top - 8;
+          // Value label below
+          const valueY = padding.top + chartHeight + 24;
+          // Secondary value label (if exists) below primary value
+          const secondaryValueY = padding.top + chartHeight + 38;
+
           return (
-            <SvgText
-              key={`label-${index}`}
-              x={x}
-              y={y}
-              fill={textColor}
-              fontSize={11}
-              textAnchor="end"
-              transform={`rotate(-30 ${x} ${y})`}
-            >
-              {point.label}
-            </SvgText>
+            <React.Fragment key={`labels-${index}`}>
+              {/* Hour label on top */}
+              <SvgText
+                x={x}
+                y={hourY}
+                fill={textColor}
+                fontSize={12}
+                fontWeight="600"
+                textAnchor="middle"
+              >
+                {point.label}
+              </SvgText>
+              {/* Primary value label below */}
+              <SvgText
+                x={x}
+                y={valueY}
+                fill={color}
+                fontSize={11}
+                fontWeight="600"
+                textAnchor="middle"
+              >
+                {valueFormatter(point.value)}
+              </SvgText>
+              {/* Secondary value label below primary (if exists) */}
+              {showSecondary && typeof point.secondary === "number" && (
+                <SvgText
+                  x={x}
+                  y={secondaryValueY}
+                  fill={secondaryColor}
+                  fontSize={10}
+                  textAnchor="middle"
+                >
+                  {valueFormatter(point.secondary)}
+                </SvgText>
+              )}
+            </React.Fragment>
           );
         })}
       </Svg>
