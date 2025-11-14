@@ -80,6 +80,10 @@ android/.gradle/
 # *.apk
 *.aab
 
+# APK output folder (keep APKs for distribution)
+!android/apk/
+!android/apk/*.apk
+
 # Documentation (detailed docs)
 docs/
 *.md.detailed

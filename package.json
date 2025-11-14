@@ -8,7 +8,8 @@
     "clean:all": "npm run clean && rm -rf node_modules && npm install",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "build:apk": "bash scripts/build-apk.sh"
   },
   "dependencies": {
     "fast-text-encoding": "^1.0.6",

@@ -134,10 +134,10 @@ function dayKey(date: Date) {
 
 const HOURLY_TABS = [
   { key: "summary", label: "Summary" },
-  { key: "temperature", label: "Temperature" },
+  { key: "temperature", label: "Temp" },
   { key: "precipitation", label: "Rain" },
   { key: "wind", label: "Wind" },
-  { key: "airquality", label: "Air Quality" },
+  { key: "airquality", label: "Air" },
 ] as const;
 
 type HourlyTabKey = (typeof HOURLY_TABS)[number]["key"];
@@ -1244,6 +1244,7 @@ const styles = StyleSheet.create({
   tabButtonText: {
     color: "#111",
     fontWeight: "600",
+    fontSize: 13,
   },
   tabButtonTextActive: {
     color: "#fff",
