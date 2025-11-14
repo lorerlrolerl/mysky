@@ -100,6 +100,11 @@ android {
             signingConfig signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            // Disable native library stripping to avoid warnings
+            // The warning is harmless but can be suppressed this way
+            ndk {
+                debugSymbolLevel 'NONE'
+            }
         }
     }
 }

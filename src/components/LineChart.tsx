@@ -127,7 +127,7 @@ export function LineChart({
           width={chartWidth}
           height={chartHeight}
           fill={
-            isDarkMode ? "rgba(118,118,128,0.12)" : "rgba(118,118,128,0.08)"
+            isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
           }
           rx={14}
         />

@@ -859,7 +859,12 @@ function App(): React.JSX.Element {
                     })}
                   </ScrollView>
 
-                  <View style={styles.tabRow}>
+                  <View
+                    style={[
+                      styles.tabRow,
+                      isDarkMode && styles.tabRowDark,
+                    ]}
+                  >
                     {HOURLY_TABS.map((tab) => {
                       const selected = activeHourlyTab === tab.key;
                       return (
@@ -874,6 +879,7 @@ function App(): React.JSX.Element {
                           <Text
                             style={[
                               styles.tabButtonText,
+                              isDarkMode && styles.tabButtonTextDark,
                               selected && styles.tabButtonTextActive,
                             ]}
                           >
@@ -1231,9 +1237,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 4,
   },
+  tabRowDark: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
   tabButton: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -1244,7 +1254,10 @@ const styles = StyleSheet.create({
   tabButtonText: {
     color: "#111",
     fontWeight: "600",
-    fontSize: 13,
+    fontSize: 10,
+  },
+  tabButtonTextDark: {
+    color: "#d1d1d6",
   },
   tabButtonTextActive: {
     color: "#fff",
