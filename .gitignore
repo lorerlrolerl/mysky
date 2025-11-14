@@ -74,10 +74,10 @@ yarn-error.log
 .env.*.local
 
 # Build artifacts
-android/app/build/
-android/build/
+# android/app/build/
+# android/build/
 android/.gradle/
-*.apk
+# *.apk
 *.aab
 
 # Documentation (detailed docs)
