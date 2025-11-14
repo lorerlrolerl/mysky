@@ -49,6 +49,7 @@ yarn-error.log
 
 # Bundle artifact
 *.jsbundle
+android/app/src/main/assets/index.android.bundle
 
 # Ruby / CocoaPods
 **/Pods/
@@ -77,12 +78,8 @@ yarn-error.log
 # android/app/build/
 # android/build/
 android/.gradle/
-# *.apk
+*.apk
 *.aab
-
-# APK output folder (keep APKs for distribution)
-!android/apk/
-!android/apk/*.apk
 
 # Documentation (detailed docs)
 docs/
