@@ -116,30 +116,35 @@ adb version
 
 ## Building APK
 
-### Quick Build
+### Quick Build (Release)
 
-Use the automated build script:
+The default build creates optimized per-ABI release APKs:
 ```bash
-npm run build:apk
+npm run build:apk          # same as npm run build:apk:release
+```
+This command cleans previous builds and runs `./gradlew assembleRelease`.
+Outputs are stored in `android/app/build/outputs/apk/release/` as:
+- `app-armeabi-v7a-release.apk`
+- `app-arm64-v8a-release.apk`
+- `app-x86-release.apk`
+- `app-x86_64-release.apk`
+
+Install the APK that matches your device architecture, e.g.:
+```bash
+adb install -r android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
 ```
 
-This will:
-- Clean previous builds
-- Bundle JavaScript
-- Build the debug APK
-- Copy APK to `android/apk/` with timestamp
+### Debug Build
 
-The APK will be at: `android/apk/MySky-debug-YYYYMMDD_HHMMSS.apk`
+Debug builds remain available (with Metro/dev tooling) for testing:
+```bash
+npm run build:apk:debug
+```
+Outputs live in `android/app/build/outputs/apk/debug/` as `app-<abi>-debug.apk`.
 
 ### Manual Build
 
-1. **Create necessary directories:**
-   ```bash
-   mkdir -p android/app/src/main/assets
-   mkdir -p android/app/src/main/res
-   ```
-
-2. **Bundle JavaScript:**
+1. **Bundle JavaScript and assets (release mode):**
    ```bash
    npx react-native bundle \
      --platform android \
@@ -149,18 +154,17 @@ The APK will be at: `android/apk/MySky-debug-YYYYMMDD_HHMMSS.apk`
      --assets-dest android/app/src/main/res
    ```
 
-3. **Build APK:**
+2. **Assemble release APKs:**
    ```bash
    cd android
-   ./gradlew assembleDebug
+   ./gradlew assembleRelease
    cd ..
    ```
 
-4. **Install on device:**
+3. **Install the appropriate APK:**
    ```bash
-   adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+   adb install -r android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
    ```
-
 ## Installing APK on Your Phone
 
 ### Step 1: Install ADB (Android Debug Bridge)
@@ -321,6 +325,14 @@ adb install -r android/apk/MySky-debug-20241215_143022.apk
 For a release build, you'll need to set up a signing key. See [React Native documentation](https://reactnative.dev/docs/signed-apk-android) for details.
 
 **Note:** When building release APK, you may see warnings like "Unable to strip the following libraries...". This is normal and harmless - the build will still succeed. The APK will work fine, it just might be slightly larger. These warnings can be safely ignored.
+
+## Performance Highlights
+
+- **In-memory caching** keeps weather responses for 10 minutes to reduce API traffic without storing anything on disk.
+- **Request cancellation with AbortController** prevents leaks when switching locations or unmounting components.
+- **Typed arrays (Float64Array)** store hourly/daily data efficiently and avoid costly conversions.
+- **Lightweight SVG charts** render only the active day with horizontal scrolling to keep UI smooth.
+- **Build cleanup scripts** (`npm run clean`, `npm run clean:all`) remove artifacts and keep release builds slim.
 
 ## Available Scripts
 

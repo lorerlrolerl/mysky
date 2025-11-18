@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "build:apk": "bash scripts/build-apk.sh"
+    "build:apk": "bash scripts/build-apk.sh",
+    "build:apk:release": "bash scripts/build-apk-release.sh",
+    "build:apk:debug": "bash scripts/build-apk-debug.sh"
   },
   "dependencies": {
     "fast-text-encoding": "^1.0.6",
