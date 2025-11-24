@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Dimensions, StyleSheet, View, Text } from "react-native";
 import Svg, {
   Polyline,
@@ -27,10 +27,10 @@ type WeatherCompositeChartProps = {
   isDarkMode?: boolean;
 };
 
-const TEMP_COLOR = "#ff3b30";
-const FEELS_COLOR = "#ff9f0c";
-const WIND_COLOR = "#bf5af2";
-const PROBABILITY_COLOR = "rgba(10,132,255,0.25)";
+const TEMP_COLOR = "#ff6b5f";
+const FEELS_COLOR = "#ffb86b";
+const WIND_COLOR = "#c7a6ff";
+const BASE_WIDTH_PER_POINT = 80;
 
 export function WeatherCompositeChart({
   data,
@@ -52,7 +52,7 @@ export function WeatherCompositeChart({
   const precipHeight = 160;
   const windHeight = 120;
   const aqiHeight = 140;
-  const width = Math.max(data.length * 100, screenWidth - 64);
+  const width = Math.max(data.length * BASE_WIDTH_PER_POINT, screenWidth - 64);
   const chartWidth = width - padding.left - padding.right;
   const height =
     padding.top +
@@ -139,6 +139,9 @@ export function WeatherCompositeChart({
   };
 
   const textColor = isDarkMode ? "#d1d1d6" : "#3a3a3c";
+  const probabilityFill = isDarkMode
+    ? "rgba(88,173,255,0.35)"
+    : "rgba(64,156,255,0.28)";
   const probabilityTicks = [0, probabilityMax / 2, probabilityMax].filter(
     (value, idx, arr) => idx === 0 || value !== arr[idx - 1]
   );
@@ -191,9 +194,8 @@ export function WeatherCompositeChart({
           {probabilityPath && (
             <Polygon
               points={probabilityPath}
-              fill={PROBABILITY_COLOR}
+              fill={probabilityFill}
               stroke="none"
-              opacity={0.35}
             />
           )}
 
@@ -360,26 +362,7 @@ export function WeatherCompositeChart({
           {data.map((item, index) => {
             const x = indexToX(index);
             return (
-              <React.Fragment key={`labels-${index}`}>
-                <SvgText
-                  x={x}
-                  y={labelY - 18}
-                  fill={textColor}
-                  fontSize={14}
-                  textAnchor="middle"
-                >
-                  {item.weatherIcon}
-                </SvgText>
-                <SvgText
-                  x={x}
-                  y={labelY}
-                  fill={textColor}
-                  fontSize={11}
-                  fontWeight="600"
-                  textAnchor="middle"
-                >
-                  {item.label}
-                </SvgText>
+              <React.Fragment key={`temp-label-${index}`}>
                 <SvgText
                   x={x}
                   y={tempValueToY(item.temperature) - 12}
@@ -404,6 +387,39 @@ export function WeatherCompositeChart({
             );
           })}
         </Svg>
+        <Svg
+          pointerEvents="none"
+          height={padding.top}
+          width={width}
+          style={styles.iconLayer}
+        >
+          {data.map((item, index) => {
+            const x = indexToX(index);
+            return (
+              <React.Fragment key={`icon-${index}`}>
+                <SvgText
+                  x={x}
+                  y={labelY - 18}
+                  fill={textColor}
+                  fontSize={14}
+                  textAnchor="middle"
+                >
+                  {item.weatherIcon}
+                </SvgText>
+                <SvgText
+                  x={x}
+                  y={labelY}
+                  fill={textColor}
+                  fontSize={11}
+                  fontWeight="600"
+                  textAnchor="middle"
+                >
+                  {item.label}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+        </Svg>
       </View>
       <View
         style={[
@@ -419,12 +435,12 @@ export function WeatherCompositeChart({
           isDarkMode={isDarkMode}
         />
         <LegendItem
-          color="#0a84ff"
+          color="#4aa3ff"
           label="Precip (mm)"
           isDarkMode={isDarkMode}
         />
         <LegendItem
-          color="rgba(10,132,255,0.35)"
+          color={probabilityFill}
           label="Precip chance"
           isDarkMode={isDarkMode}
           dashed
@@ -449,12 +465,20 @@ function LegendItem({
   isDarkMode: boolean;
   dashed?: boolean;
 }) {
+  const swatchDynamicStyle = useMemo(
+    () => ({
+      backgroundColor: dashed ? "transparent" : color,
+      borderColor: dashed ? color : "transparent",
+    }),
+    [color, dashed]
+  );
+
   return (
     <View style={styles.legendItem}>
       <View
         style={[
           styles.legendSwatch,
-          { backgroundColor: color },
+          swatchDynamicStyle,
           dashed && styles.legendSwatchDashed,
         ]}
       />
@@ -473,6 +497,7 @@ const styles = StyleSheet.create({
   chartContainer: {
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
   },
   emptyState: {
     height: 320,
@@ -499,8 +524,6 @@ const styles = StyleSheet.create({
   legendSwatchDashed: {
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "#0a84ff",
-    backgroundColor: "transparent",
   },
   legendLabel: {
     fontSize: 12,
@@ -509,6 +532,11 @@ const styles = StyleSheet.create({
   },
   legendLabelDark: {
     color: "#f2f2f7",
+  },
+  iconLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
 });
 
