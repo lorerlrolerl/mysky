@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Dimensions, StyleSheet, View, Text } from "react-native";
+import { Dimensions, StyleSheet, View, Text, ScrollView } from "react-native";
 import Svg, {
   Polyline,
   Polygon,
@@ -41,8 +41,9 @@ export function WeatherCompositeChart({
   }
 
   const screenWidth = Dimensions.get("window").width;
+  const headerHeight = 64;
   const padding = {
-    top: 68,
+    top: 32,
     right: 24,
     bottom: 56,
     left: 24,
@@ -74,8 +75,7 @@ export function WeatherCompositeChart({
   const aqiTop = windBottom + sectionSpacing;
   const aqiBottom = aqiTop + aqiHeight;
 
-  const labelY = padding.top - 18;
-
+  const labelY = headerHeight - 18;
   const dataCount = data.length || 1;
   const xSpacing = chartWidth / dataCount;
   const getBarWidth = (maxWidth: number) => Math.min(maxWidth, xSpacing * 0.55);
@@ -146,310 +146,340 @@ export function WeatherCompositeChart({
     (value, idx, arr) => idx === 0 || value !== arr[idx - 1]
   );
 
+  const viewportHeight = Math.min(
+    height + headerHeight + 140,
+    Dimensions.get("window").height * 0.85
+  );
+
   return (
     <View style={styles.wrapper}>
-      <View style={[styles.chartContainer, { height, width }]}>
-        <Svg height={height} width={width}>
-          <Rect
-            x={padding.left}
-            y={tempTop}
-            width={chartWidth}
-            height={tempHeight}
-            rx={12}
-            fill={
-              isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
-            }
-          />
-          <Rect
-            x={padding.left}
-            y={precipTop}
-            width={chartWidth}
-            height={precipHeight}
-            rx={12}
-            fill={
-              isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
-            }
-          />
-          <Rect
-            x={padding.left}
-            y={windTop}
-            width={chartWidth}
-            height={windHeight}
-            rx={12}
-            fill={
-              isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
-            }
-          />
-          <Rect
-            x={padding.left}
-            y={aqiTop}
-            width={chartWidth}
-            height={aqiHeight}
-            rx={12}
-            fill={
-              isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
-            }
-          />
-
-          {probabilityPath && (
-            <Polygon
-              points={probabilityPath}
-              fill={probabilityFill}
-              stroke="none"
+      <ScrollView
+        style={[
+          styles.chartViewport,
+          isDarkMode && styles.chartViewportDark,
+          { width, height: viewportHeight },
+        ]}
+        contentContainerStyle={styles.chartScrollContent}
+        stickyHeaderIndices={[0]}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[
+            styles.stickyHeader,
+            isDarkMode && styles.stickyHeaderDark,
+            { width, height: headerHeight },
+          ]}
+        >
+          <Svg height={headerHeight} width={width}>
+            {data.map((item, index) => {
+              const x = indexToX(index);
+              return (
+                <React.Fragment key={`icon-${index}`}>
+                  <SvgText
+                    x={x}
+                    y={labelY - 18}
+                    fill={textColor}
+                    fontSize={14}
+                    textAnchor="middle"
+                  >
+                    {item.weatherIcon}
+                  </SvgText>
+                  <SvgText
+                    x={x}
+                    y={labelY}
+                    fill={textColor}
+                    fontSize={11}
+                    fontWeight="600"
+                    textAnchor="middle"
+                  >
+                    {item.label}
+                  </SvgText>
+                </React.Fragment>
+              );
+            })}
+          </Svg>
+        </View>
+        <View style={[styles.chartContainer, { height, width }]}>
+          <Svg height={height} width={width}>
+            <Rect
+              x={padding.left}
+              y={tempTop}
+              width={chartWidth}
+              height={tempHeight}
+              rx={12}
+              fill={
+                isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
+              }
             />
-          )}
+            <Rect
+              x={padding.left}
+              y={precipTop}
+              width={chartWidth}
+              height={precipHeight}
+              rx={12}
+              fill={
+                isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
+              }
+            />
+            <Rect
+              x={padding.left}
+              y={windTop}
+              width={chartWidth}
+              height={windHeight}
+              rx={12}
+              fill={
+                isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
+              }
+            />
+            <Rect
+              x={padding.left}
+              y={aqiTop}
+              width={chartWidth}
+              height={aqiHeight}
+              rx={12}
+              fill={
+                isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(118,118,128,0.08)"
+              }
+            />
 
-          {/* Precipitation bars */}
-          {data.map((item, index) => {
-            if (item.precipitation <= 0) {
-              return null;
-            }
-            const xCenter = indexToX(index);
-            const barWidth = getBarWidth(36);
-            const barLeft = xCenter - barWidth / 2;
-            const barTop = precipValueToY(item.precipitation);
-            const barHeight = precipBottom - 16 - barTop;
-            const barColor =
-              item.precipType.key === "dry"
-                ? "rgba(142,142,147,0.4)"
-                : item.precipType.color;
-            const precipLabelY = getLabelBelow(precipBottom, 20);
-            return (
-              <React.Fragment key={`precip-bar-${index}`}>
-                <Rect
-                  x={barLeft}
-                  y={barTop}
-                  width={barWidth}
-                  height={Math.max(4, barHeight)}
-                  rx={6}
-                  fill={barColor}
-                />
-                <SvgText
-                  x={xCenter}
-                  y={precipLabelY}
-                  fill={barColor}
-                  fontSize={11}
-                  fontWeight="600"
-                  textAnchor="middle"
-                >
-                  {item.precipitation.toFixed(1)} mm
-                </SvgText>
-              </React.Fragment>
-            );
-          })}
+            {probabilityPath && (
+              <Polygon
+                points={probabilityPath}
+                fill={probabilityFill}
+                stroke="none"
+              />
+            )}
 
-          {/* Probability axis labels */}
-          {probabilityTicks.map((value) => {
-            const ratio = value / probabilityMax;
-            const y = precipBottom - ratio * (precipBottom - precipTop);
-            return (
-              <SvgText
-                key={`prob-label-${value}`}
-                x={padding.left + chartWidth + 8}
-                y={y + 4}
-                fill={textColor}
-                fontSize={10}
-                textAnchor="start"
-              >
-                {Math.round(value)}%
-              </SvgText>
-            );
-          })}
-
-          {/* Temperature lines */}
-          <Polyline
-            points={data
-              .map(
-                (item, index) =>
-                  `${indexToX(index)},${tempValueToY(item.temperature)}`
-              )
-              .join(" ")}
-            fill="none"
-            stroke={TEMP_COLOR}
-            strokeWidth={2.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <Polyline
-            points={data
-              .map(
-                (item, index) =>
-                  `${indexToX(index)},${tempValueToY(item.apparent)}`
-              )
-              .join(" ")}
-            fill="none"
-            stroke={FEELS_COLOR}
-            strokeWidth={2}
-            strokeDasharray="6 6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {/* Wind bars */}
-          {data.map((item, index) => {
-            if (item.windSpeed <= 0) {
-              return null;
-            }
-            const xCenter = indexToX(index);
-            const barWidth = getBarWidth(30);
-            const barLeft = xCenter - barWidth / 2;
-            const barTop = windValueToY(item.windSpeed);
-            const barHeight = windBottom - 12 - barTop;
-            const windLabelY = getLabelBelow(windBottom, 20);
-            return (
-              <React.Fragment key={`wind-bar-${index}`}>
-                <Rect
-                  x={barLeft}
-                  y={barTop}
-                  width={barWidth}
-                  height={Math.max(4, barHeight)}
-                  rx={5}
-                  fill={WIND_COLOR}
-                />
-                <SvgText
-                  x={xCenter}
-                  y={windLabelY}
-                  fill={WIND_COLOR}
-                  fontSize={10}
-                  fontWeight="600"
-                  textAnchor="middle"
-                >
-                  {item.windSpeed.toFixed(1)} km/h
-                </SvgText>
-              </React.Fragment>
-            );
-          })}
-
-          {/* AQI bars */}
-          {hasAQI &&
-            data.map((item, index) => {
-              if (!item.aqi || Number.isNaN(item.aqi)) {
+            {/* Precipitation bars */}
+            {data.map((item, index) => {
+              if (item.precipitation <= 0) {
                 return null;
               }
               const xCenter = indexToX(index);
-              const barWidth = getBarWidth(32);
+              const barWidth = getBarWidth(36);
               const barLeft = xCenter - barWidth / 2;
-              const barTop = aqiValueToY(item.aqi);
-              const barHeight = aqiBottom - 16 - barTop;
-              const barColor = item.aqiColor ?? "#8e8e93";
-              const aqiLabelY = getLabelBelow(aqiBottom, 20);
+              const barTop = precipValueToY(item.precipitation);
+              const barHeight = precipBottom - 16 - barTop;
+              const barColor =
+                item.precipType.key === "dry"
+                  ? "rgba(142,142,147,0.4)"
+                  : item.precipType.color;
+              const precipLabelY = getLabelBelow(precipBottom, 20);
               return (
-                <React.Fragment key={`aqi-bar-${index}`}>
+                <React.Fragment key={`precip-bar-${index}`}>
+                  <Rect
+                    x={barLeft}
+                    y={barTop}
+                    width={barWidth}
+                    height={Math.max(4, barHeight)}
+                    rx={6}
+                    fill={barColor}
+                  />
+                  <SvgText
+                    x={xCenter}
+                    y={precipLabelY}
+                    fill={barColor}
+                    fontSize={11}
+                    fontWeight="600"
+                    textAnchor="middle"
+                  >
+                    {item.precipitation.toFixed(1)} mm
+                  </SvgText>
+                </React.Fragment>
+              );
+            })}
+
+            {/* Probability axis labels */}
+            {probabilityTicks.map((value) => {
+              const ratio = value / probabilityMax;
+              const y = precipBottom - ratio * (precipBottom - precipTop);
+              return (
+                <SvgText
+                  key={`prob-label-${value}`}
+                  x={padding.left + chartWidth + 8}
+                  y={y + 4}
+                  fill={textColor}
+                  fontSize={10}
+                  textAnchor="start"
+                >
+                  {Math.round(value)}%
+                </SvgText>
+              );
+            })}
+
+            {/* Temperature lines */}
+            <Polyline
+              points={data
+                .map(
+                  (item, index) =>
+                    `${indexToX(index)},${tempValueToY(item.temperature)}`
+                )
+                .join(" ")}
+              fill="none"
+              stroke={TEMP_COLOR}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <Polyline
+              points={data
+                .map(
+                  (item, index) =>
+                    `${indexToX(index)},${tempValueToY(item.apparent)}`
+                )
+                .join(" ")}
+              fill="none"
+              stroke={FEELS_COLOR}
+              strokeWidth={2}
+              strokeDasharray="6 6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+
+            {/* Wind bars */}
+            {data.map((item, index) => {
+              if (item.windSpeed <= 0) {
+                return null;
+              }
+              const xCenter = indexToX(index);
+              const barWidth = getBarWidth(30);
+              const barLeft = xCenter - barWidth / 2;
+              const barTop = windValueToY(item.windSpeed);
+              const barHeight = windBottom - 12 - barTop;
+              const windLabelY = getLabelBelow(windBottom, 20);
+              return (
+                <React.Fragment key={`wind-bar-${index}`}>
                   <Rect
                     x={barLeft}
                     y={barTop}
                     width={barWidth}
                     height={Math.max(4, barHeight)}
                     rx={5}
-                    fill={barColor}
+                    fill={WIND_COLOR}
                   />
-                  {item.aqiLabel && (
-                    <SvgText
-                      x={xCenter}
-                      y={aqiLabelY}
-                      fill={barColor}
-                      fontSize={11}
-                      fontWeight="600"
-                      textAnchor="middle"
-                    >
-                      {item.aqiLabel}
-                    </SvgText>
-                  )}
+                  <SvgText
+                    x={xCenter}
+                    y={windLabelY - 6}
+                    fill={WIND_COLOR}
+                    fontSize={11}
+                    fontWeight="600"
+                    textAnchor="middle"
+                  >
+                    {item.windSpeed.toFixed(1)}
+                  </SvgText>
+                  <SvgText
+                    x={xCenter}
+                    y={windLabelY + 6}
+                    fill={WIND_COLOR}
+                    fontSize={9}
+                    fontWeight="500"
+                    textAnchor="middle"
+                  >
+                    km/h
+                  </SvgText>
                 </React.Fragment>
               );
             })}
 
-          {data.map((item, index) => {
-            const x = indexToX(index);
-            return (
-              <React.Fragment key={`temp-label-${index}`}>
-                <SvgText
-                  x={x}
-                  y={tempValueToY(item.temperature) - 12}
-                  fill={TEMP_COLOR}
-                  fontSize={10}
-                  fontWeight="600"
-                  textAnchor="middle"
-                >
-                  {item.temperature.toFixed(1)}°C
-                </SvgText>
-                <SvgText
-                  x={x}
-                  y={tempValueToY(item.apparent) + 16}
-                  fill={FEELS_COLOR}
-                  fontSize={10}
-                  fontWeight="500"
-                  textAnchor="middle"
-                >
-                  {item.apparent.toFixed(1)}°C
-                </SvgText>
-              </React.Fragment>
-            );
-          })}
-        </Svg>
-        <Svg
-          pointerEvents="none"
-          height={padding.top}
-          width={width}
-          style={styles.iconLayer}
+            {/* AQI bars */}
+            {hasAQI &&
+              data.map((item, index) => {
+                if (!item.aqi || Number.isNaN(item.aqi)) {
+                  return null;
+                }
+                const xCenter = indexToX(index);
+                const barWidth = getBarWidth(32);
+                const barLeft = xCenter - barWidth / 2;
+                const barTop = aqiValueToY(item.aqi);
+                const barHeight = aqiBottom - 16 - barTop;
+                const barColor = item.aqiColor ?? "#8e8e93";
+                const aqiLabelY = getLabelBelow(aqiBottom, 20);
+                return (
+                  <React.Fragment key={`aqi-bar-${index}`}>
+                    <Rect
+                      x={barLeft}
+                      y={barTop}
+                      width={barWidth}
+                      height={Math.max(4, barHeight)}
+                      rx={5}
+                      fill={barColor}
+                    />
+                    {item.aqiLabel && (
+                      <SvgText
+                        x={xCenter}
+                        y={aqiLabelY}
+                        fill={barColor}
+                        fontSize={11}
+                        fontWeight="600"
+                        textAnchor="middle"
+                      >
+                        {item.aqiLabel}
+                      </SvgText>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+
+            {data.map((item, index) => {
+              const x = indexToX(index);
+              return (
+                <React.Fragment key={`temp-label-${index}`}>
+                  <SvgText
+                    x={x}
+                    y={tempValueToY(item.temperature) - 12}
+                    fill={TEMP_COLOR}
+                    fontSize={10}
+                    fontWeight="600"
+                    textAnchor="middle"
+                  >
+                    {item.temperature.toFixed(1)}°C
+                  </SvgText>
+                  <SvgText
+                    x={x}
+                    y={tempValueToY(item.apparent) + 16}
+                    fill={FEELS_COLOR}
+                    fontSize={10}
+                    fontWeight="500"
+                    textAnchor="middle"
+                  >
+                    {item.apparent.toFixed(1)}°C
+                  </SvgText>
+                </React.Fragment>
+              );
+            })}
+          </Svg>
+        </View>
+        <View
+          style={[
+            styles.legendRow,
+            isDarkMode && styles.legendRowDark,
+            { width },
+          ]}
         >
-          {data.map((item, index) => {
-            const x = indexToX(index);
-            return (
-              <React.Fragment key={`icon-${index}`}>
-                <SvgText
-                  x={x}
-                  y={labelY - 18}
-                  fill={textColor}
-                  fontSize={14}
-                  textAnchor="middle"
-                >
-                  {item.weatherIcon}
-                </SvgText>
-                <SvgText
-                  x={x}
-                  y={labelY}
-                  fill={textColor}
-                  fontSize={11}
-                  fontWeight="600"
-                  textAnchor="middle"
-                >
-                  {item.label}
-                </SvgText>
-              </React.Fragment>
-            );
-          })}
-        </Svg>
-      </View>
-      <View
-        style={[
-          styles.legendRow,
-          isDarkMode && styles.legendRowDark,
-          { width },
-        ]}
-      >
-        <LegendItem color={TEMP_COLOR} label="Temp" isDarkMode={isDarkMode} />
-        <LegendItem
-          color={FEELS_COLOR}
-          label="Feels like"
-          isDarkMode={isDarkMode}
-        />
-        <LegendItem
-          color="#4aa3ff"
-          label="Precip (mm)"
-          isDarkMode={isDarkMode}
-        />
-        <LegendItem
-          color={probabilityFill}
-          label="Precip chance"
-          isDarkMode={isDarkMode}
-          dashed
-        />
-        <LegendItem color={WIND_COLOR} label="Wind" isDarkMode={isDarkMode} />
-        {hasAQI && (
-          <LegendItem color="#8e8e93" label="AQI" isDarkMode={isDarkMode} />
-        )}
-      </View>
+          <LegendItem color={TEMP_COLOR} label="Temp" isDarkMode={isDarkMode} />
+          <LegendItem
+            color={FEELS_COLOR}
+            label="Feels like"
+            isDarkMode={isDarkMode}
+          />
+          <LegendItem
+            color="#4aa3ff"
+            label="Precip (mm)"
+            isDarkMode={isDarkMode}
+          />
+          <LegendItem
+            color={probabilityFill}
+            label="Precip chance"
+            isDarkMode={isDarkMode}
+            dashed
+          />
+          <LegendItem color={WIND_COLOR} label="Wind" isDarkMode={isDarkMode} />
+          {hasAQI && (
+            <LegendItem color="#8e8e93" label="AQI" isDarkMode={isDarkMode} />
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -494,10 +524,28 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: "center",
   },
+  chartViewport: {
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+  },
+  chartViewportDark: {
+    backgroundColor: "#1c1c1e",
+  },
+  chartScrollContent: {
+    alignItems: "center",
+    paddingBottom: 16,
+  },
   chartContainer: {
     justifyContent: "center",
     alignItems: "center",
-    position: "relative",
+    backgroundColor: "transparent",
+  },
+  stickyHeader: {
+    backgroundColor: "rgba(242,242,247,0.95)",
+  },
+  stickyHeaderDark: {
+    backgroundColor: "rgba(28,28,30,0.95)",
   },
   emptyState: {
     height: 320,
@@ -532,11 +580,6 @@ const styles = StyleSheet.create({
   },
   legendLabelDark: {
     color: "#f2f2f7",
-  },
-  iconLayer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
   },
 });
 
