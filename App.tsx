@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   SafeAreaView,
@@ -10,8 +16,12 @@ import {
   TouchableOpacity,
   View,
   useColorScheme,
+  Keyboard,
 } from "react-native";
 import LineChart, { LineChartPoint } from "./src/components/LineChart";
+import WeatherCompositeChart, {
+  WeatherCompositeDatum,
+} from "./src/components/WeatherCompositeChart";
 import { Location, searchLocations } from "./src/services/openMeteo";
 import { useWeather } from "./src/hooks/useWeather";
 import { formatWeatherCode } from "./src/utils/weatherCodes";
@@ -38,6 +48,14 @@ function formatMillimetres(value: number | undefined) {
   }
 
   return `${value.toFixed(1)} mm`;
+}
+
+function formatCentimetres(value: number | undefined) {
+  if (value == null || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return `${value.toFixed(1)} cm`;
 }
 
 function formatSpeed(value: number | undefined) {
@@ -103,11 +121,21 @@ function formatAQI(value: number | undefined): string {
   }
 
   const aqi = Math.round(value);
-  if (aqi <= 20) return `${aqi} (Good)`;
-  if (aqi <= 40) return `${aqi} (Fair)`;
-  if (aqi <= 60) return `${aqi} (Moderate)`;
-  if (aqi <= 80) return `${aqi} (Poor)`;
-  if (aqi <= 100) return `${aqi} (Very Poor)`;
+  if (aqi <= 20) {
+    return `${aqi} (Good)`;
+  }
+  if (aqi <= 40) {
+    return `${aqi} (Fair)`;
+  }
+  if (aqi <= 60) {
+    return `${aqi} (Moderate)`;
+  }
+  if (aqi <= 80) {
+    return `${aqi} (Poor)`;
+  }
+  if (aqi <= 100) {
+    return `${aqi} (Very Poor)`;
+  }
   return `${aqi} (Extremely Poor)`;
 }
 
@@ -117,12 +145,22 @@ function getAQIColor(value: number | undefined): string {
   }
 
   const aqi = Math.round(value);
-  if (aqi <= 20) return "#34c759"; // Green - Good
-  if (aqi <= 40) return "#30d158"; // Light Green - Fair
-  if (aqi <= 60) return "#ffd60a"; // Yellow - Moderate
-  if (aqi <= 80) return "#ff9f0a"; // Orange - Poor
-  if (aqi <= 100) return "#ff453a"; // Red - Very Poor
-  return "#bf5af2"; // Purple - Extremely Poor
+  if (aqi <= 20) {
+    return "#74c476"; // Good - soft green
+  }
+  if (aqi <= 40) {
+    return "#41ab5d"; // Fair - deeper green
+  }
+  if (aqi <= 60) {
+    return "#ffd54f"; // Moderate - warm yellow
+  }
+  if (aqi <= 80) {
+    return "#ffb74d"; // Poor - gentle orange
+  }
+  if (aqi <= 100) {
+    return "#ff7043"; // Very Poor - coral red
+  }
+  return "#d32f2f"; // Extremely Poor - crimson
 }
 
 function dayKey(date: Date) {
@@ -134,10 +172,7 @@ function dayKey(date: Date) {
 
 const HOURLY_TABS = [
   { key: "summary", label: "Summary" },
-  { key: "temperature", label: "Temp" },
-  { key: "precipitation", label: "Rain" },
-  { key: "wind", label: "Wind" },
-  { key: "airquality", label: "Air" },
+  { key: "weather", label: "Weather" },
 ] as const;
 
 type HourlyTabKey = (typeof HOURLY_TABS)[number]["key"];
@@ -155,9 +190,100 @@ type HourlyPoint = {
   weather_code: number;
   showers: number;
   snowfall: number;
-  snow_depth: number;
   european_aqi?: number;
 };
+
+type PrecipitationSource = {
+  precipitation: number;
+  rain: number;
+  showers: number;
+  snowfall: number;
+};
+
+type PrecipitationTypeConfig = {
+  key: "rain" | "showers" | "snowfall";
+  label: string;
+  color: string;
+  accessor: (source: PrecipitationSource) => number;
+  formatter: (value: number) => string;
+};
+
+const PRECIP_TYPE_CONFIG: PrecipitationTypeConfig[] = [
+  {
+    key: "rain",
+    label: "Rain",
+    color: "#0a84ff",
+    accessor: (source) => source.rain,
+    formatter: formatMillimetres,
+  },
+  {
+    key: "showers",
+    label: "Showers",
+    color: "#5ac8fa",
+    accessor: (source) => source.showers,
+    formatter: formatMillimetres,
+  },
+  {
+    key: "snowfall",
+    label: "Snow",
+    color: "#bf5af2",
+    accessor: (source) => source.snowfall,
+    formatter: formatCentimetres,
+  },
+] as const;
+
+const PRECIP_MIXED_TYPE = {
+  key: "mixed",
+  label: "Mixed",
+  color: "#ffd60a",
+} as const;
+
+const PRECIP_DRY_TYPE = {
+  key: "dry",
+  label: "No precip.",
+  color: "#8e8e93",
+} as const;
+
+export type ResolvedPrecipitationType = {
+  key: string;
+  label: string;
+  color: string;
+  amount: number;
+};
+
+function resolvePrecipitationType(
+  source: PrecipitationSource
+): ResolvedPrecipitationType {
+  let resolved: ResolvedPrecipitationType = {
+    ...PRECIP_DRY_TYPE,
+    amount: 0,
+  };
+
+  PRECIP_TYPE_CONFIG.forEach((type) => {
+    const value = type.accessor(source);
+    if (value > resolved.amount) {
+      resolved = {
+        key: type.key,
+        label: type.label,
+        color: type.color,
+        amount: value,
+      };
+    }
+  });
+
+  if (resolved.amount > 0) {
+    return resolved;
+  }
+
+  if (source.precipitation > 0) {
+    return {
+      ...PRECIP_MIXED_TYPE,
+      amount: source.precipitation,
+    };
+  }
+
+  return resolved;
+}
 
 type HourlyDay = {
   key: string;
@@ -171,6 +297,12 @@ type ChartSummary = {
   value: string;
 };
 
+type ChartLegendItem = {
+  label: string;
+  color: string;
+  description?: string;
+};
+
 type ChartSeries = {
   points: LineChartPoint[];
   formatter: (value: number) => string;
@@ -179,6 +311,19 @@ type ChartSeries = {
   showDots: boolean;
   secondaryColor?: string;
   showSecondary?: boolean;
+  legend?: ChartLegendItem[];
+  variant?: "line" | "bar";
+  overlayValues?: number[];
+  overlayColor?: string;
+  overlayScale?: "primary" | "percentage";
+};
+
+type MinutelyInsights = {
+  points: LineChartPoint[];
+  nextEvent?: {
+    minutes: number;
+    label: string;
+  };
 };
 
 function App(): React.JSX.Element {
@@ -192,19 +337,27 @@ function App(): React.JSX.Element {
   const [activeHourlyTab, setActiveHourlyTab] =
     useState<HourlyTabKey>("summary");
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const lastSearchQueryRef = useRef("");
 
-  const handleSearch = useCallback(async () => {
-    if (!query.trim()) {
+  const performSearch = useCallback(async (term: string, force = false) => {
+    const normalized = term.trim();
+    if (!normalized) {
       setSearchResults([]);
-      setSearchError("Enter a city name to search");
+      setSearchError(undefined);
+      lastSearchQueryRef.current = "";
       return;
     }
 
+    if (!force && normalized === lastSearchQueryRef.current) {
+      return;
+    }
+
+    lastSearchQueryRef.current = normalized;
     setSearching(true);
     setSearchError(undefined);
 
     try {
-      const results = await searchLocations(query);
+      const results = await searchLocations(normalized);
       setSearchResults(results);
 
       if (!results.length) {
@@ -217,15 +370,27 @@ function App(): React.JSX.Element {
     } finally {
       setSearching(false);
     }
-  }, [query]);
+  }, []);
+
+  const handleSearch = useCallback(() => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setSearchError("Enter a city name to search");
+      return;
+    }
+    performSearch(query, true);
+  }, [performSearch, query]);
 
   const handleLocationSelect = useCallback(
     (candidate: Location) => {
+      setQuery(candidate.name);
+      Keyboard.dismiss();
       setLocation(candidate);
       setSearchResults([]);
       setSearchError(undefined);
+      lastSearchQueryRef.current = candidate.name.trim();
     },
-    [setLocation]
+    [setLocation, setQuery]
   );
 
   const handleClearLocation = useCallback(() => {
@@ -235,6 +400,22 @@ function App(): React.JSX.Element {
   useEffect(() => {
     setSelectedDayIndex(0);
   }, [location?.id]);
+
+  useEffect(() => {
+    const normalized = query.trim();
+    if (!normalized) {
+      setSearchResults([]);
+      setSearchError(undefined);
+      lastSearchQueryRef.current = "";
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      performSearch(normalized);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [performSearch, query]);
 
   const backgroundStyle = isDarkMode ? styles.containerDark : styles.container;
   const currentLocationLabel = useMemo(() => {
@@ -277,7 +458,6 @@ function App(): React.JSX.Element {
         weather_code: data.hourly.weather_code[index],
         showers: data.hourly.showers[index],
         snowfall: data.hourly.snowfall[index],
-        snow_depth: data.hourly.snow_depth[index],
         european_aqi: data.hourly.european_aqi?.[index],
       });
     });
@@ -314,230 +494,8 @@ function App(): React.JSX.Element {
   const activeDay = hourlyDays[selectedDayIndex];
   const canRefresh = Boolean(location);
 
-  const dailyCards = useMemo(() => {
-    if (!data) {
-      return [];
-    }
-
-    return data.daily.time.map((time, index) => ({
-      time,
-      weather_code: data.daily.weather_code[index],
-      tempMax: data.daily.temperature_2m_max[index],
-      tempMin: data.daily.temperature_2m_min[index],
-      precipSum: data.daily.precipitation_sum[index],
-      precipHours: data.daily.precipitation_hours[index],
-      windMax: data.daily.wind_speed_10m_max[index],
-      uvMax: data.daily.uv_index_max[index],
-    }));
-  }, [data]);
-
-  const todayDaily = dailyCards[0];
-
   const chartSeries: ChartSeries = useMemo(() => {
-    if (!activeDay) {
-      return {
-        points: [],
-        formatter: (value) => value.toFixed(1),
-        summaries: [],
-        color: "#0a84ff",
-        showDots: true,
-        showSecondary: false,
-      };
-    }
-
-    if (activeHourlyTab === "summary") {
-      const temperatures = activeDay.points.map((point) => point.temperature_2m);
-      const feelsLike = activeDay.points.map((point) => point.apparent_temperature);
-      const humidity = activeDay.points.map((point) => point.relative_humidity_2m);
-      const precipitation = activeDay.points.map(
-        (point) => point.precipitation
-      );
-      const rain = activeDay.points.map((point) => point.rain);
-      const windSpeeds = activeDay.points.map((point) => point.wind_speed_10m);
-      const precipProb = activeDay.points.map(
-        (point) => point.precipitation_probability
-      );
-
-      const tempMin = Math.min(...temperatures);
-      const tempMax = Math.max(...temperatures);
-      const tempAvg = averageArray(temperatures);
-      const feelsLikeAvg = averageArray(feelsLike);
-      const humidityAvg = averageArray(humidity);
-      const totalPrecip = sumArray(precipitation);
-      const totalRain = sumArray(rain);
-      const maxRain = Math.max(...rain);
-      const avgWind = averageArray(windSpeeds);
-      const maxWind = Math.max(...windSpeeds);
-      const maxPrecipProb = Math.max(...precipProb);
-      const avgDirection = averageDirection(
-        activeDay.points.map((point) => point.wind_direction_10m)
-      );
-      const weatherCodes = activeDay.points.map((point) => point.weather_code);
-      const codeCounts = new Map<number, number>();
-      weatherCodes.forEach((code) => {
-        codeCounts.set(code, (codeCounts.get(code) || 0) + 1);
-      });
-      let mostCommonCode = weatherCodes[0];
-      let maxCount = 0;
-      codeCounts.forEach((count, code) => {
-        if (count > maxCount) {
-          maxCount = count;
-          mostCommonCode = code;
-        }
-      });
-
-      return {
-        points: [],
-        formatter: (value) => value.toFixed(1),
-        summaries: [
-          { label: "Weather", value: formatWeatherCode(mostCommonCode) },
-          { label: "Temp min", value: formatTemperature(tempMin) },
-          { label: "Temp max", value: formatTemperature(tempMax) },
-          { label: "Temp avg", value: formatTemperature(tempAvg) },
-          { label: "Feels like avg", value: formatTemperature(feelsLikeAvg) },
-          { label: "Humidity avg", value: formatPercentage(humidityAvg) },
-          { label: "Total precip.", value: formatMillimetres(totalPrecip) },
-          { label: "Total rain", value: formatMillimetres(totalRain) },
-          { label: "Peak rain", value: formatMillimetres(maxRain) },
-          { label: "Max rain prob.", value: formatPercentage(maxPrecipProb) },
-          { label: "Wind avg", value: formatSpeed(avgWind) },
-          { label: "Wind max", value: formatSpeed(maxWind) },
-          { label: "Wind direction", value: formatDirection(avgDirection) },
-        ],
-        color: "#0a84ff",
-        showDots: false,
-        showSecondary: false,
-      };
-    }
-
-    if (activeHourlyTab === "temperature") {
-      const temperatures = activeDay.points.map((point) => point.temperature_2m);
-      const min = Math.min(...temperatures);
-      const max = Math.max(...temperatures);
-      const average = averageArray(temperatures);
-
-      return {
-        points: activeDay.points.map((point) => ({
-          label: formatTimeLabel(point.time),
-          value: point.temperature_2m,
-          secondary: point.apparent_temperature,
-        })),
-        formatter: (value) => formatTemperature(value),
-        summaries: [
-          { label: "Min", value: formatTemperature(min) },
-          { label: "Avg", value: formatTemperature(average) },
-          { label: "Max", value: formatTemperature(max) },
-        ],
-        color: "#ff3b30",
-        showDots: false,
-        secondaryColor: "#ff9f0c",
-        showSecondary: true,
-      };
-    }
-
-    if (activeHourlyTab === "precipitation") {
-      const rainValues = activeDay.points.map((point) => point.rain);
-      const precipitationTotal = sumArray(
-        activeDay.points.map((point) => point.precipitation)
-      );
-      const maxRain = Math.max(...rainValues);
-      const maxProbability = Math.max(
-        ...activeDay.points.map((point) => point.precipitation_probability)
-      );
-
-      return {
-        points: activeDay.points.map((point) => ({
-          label: formatTimeLabel(point.time),
-          value: point.rain,
-        })),
-        formatter: (value) => formatMillimetres(value),
-        summaries: [
-          {
-            label: "Total precip.",
-            value: formatMillimetres(precipitationTotal),
-          },
-          { label: "Peak rain", value: formatMillimetres(maxRain) },
-          {
-            label: "Rain probability max",
-            value: formatPercentage(maxProbability),
-          },
-        ],
-        color: "#0a84ff",
-        showDots: true,
-        showSecondary: false,
-      };
-    }
-
-    if (activeHourlyTab === "wind") {
-      const windSpeeds = activeDay.points.map((point) => point.wind_speed_10m);
-      const avgSpeed = averageArray(windSpeeds);
-      const maxSpeed = Math.max(...windSpeeds);
-      const avgDirection = averageDirection(
-        activeDay.points.map((point) => point.wind_direction_10m)
-      );
-
-      return {
-        points: windSpeeds.map((value, index) => ({
-          label: formatTimeLabel(activeDay.points[index].time),
-          value,
-        })),
-        formatter: (value) => `${value.toFixed(1)} km/h`,
-        summaries: [
-          { label: "Average speed", value: formatSpeed(avgSpeed) },
-          { label: "Max speed", value: formatSpeed(maxSpeed) },
-          { label: "Dominant direction", value: formatDirection(avgDirection) },
-        ],
-        color: "#34c759",
-        showDots: true,
-        showSecondary: false,
-      };
-    }
-
-    if (activeHourlyTab === "airquality") {
-      const aqiValues = activeDay.points
-        .map((point) => point.european_aqi)
-        .filter((aqi): aqi is number => aqi != null && !Number.isNaN(aqi));
-
-      if (aqiValues.length === 0) {
-        return {
-          points: [],
-          formatter: (value) => value.toFixed(0),
-          summaries: [
-            { label: "Status", value: "No data available" },
-          ],
-          color: "#8e8e93",
-          showDots: false,
-          showSecondary: false,
-        };
-      }
-
-      const avgAQI = averageArray(aqiValues);
-      const minAQI = Math.min(...aqiValues);
-      const maxAQI = Math.max(...aqiValues);
-      const currentAQI = aqiValues[0];
-
-      return {
-        points: activeDay.points
-          .filter((point) => point.european_aqi != null && !Number.isNaN(point.european_aqi))
-          .map((point) => ({
-            label: formatTimeLabel(point.time),
-            value: point.european_aqi!,
-          })),
-        formatter: (value) => formatAQI(value),
-        summaries: [
-          { label: "Current", value: formatAQI(currentAQI) },
-          { label: "Average", value: formatAQI(avgAQI) },
-          { label: "Min", value: formatAQI(minAQI) },
-          { label: "Max", value: formatAQI(maxAQI) },
-        ],
-        color: getAQIColor(currentAQI),
-        showDots: true,
-        showSecondary: false,
-      };
-    }
-
-    // Default fallback (should not happen)
-    return {
+    const emptySeries: ChartSeries = {
       points: [],
       formatter: (value) => value.toFixed(1),
       summaries: [],
@@ -545,7 +503,225 @@ function App(): React.JSX.Element {
       showDots: false,
       showSecondary: false,
     };
+
+    if (!activeDay || activeHourlyTab !== "summary") {
+      return emptySeries;
+    }
+
+    const temperatures = activeDay.points.map((point) => point.temperature_2m);
+    const feelsLike = activeDay.points.map(
+      (point) => point.apparent_temperature
+    );
+    const humidity = activeDay.points.map(
+      (point) => point.relative_humidity_2m
+    );
+    const precipitation = activeDay.points.map((point) => point.precipitation);
+    const rain = activeDay.points.map((point) => point.rain);
+    const showers = activeDay.points.map((point) => point.showers);
+    const snowfall = activeDay.points.map((point) => point.snowfall);
+    const windSpeeds = activeDay.points.map((point) => point.wind_speed_10m);
+    const precipProb = activeDay.points.map(
+      (point) => point.precipitation_probability
+    );
+
+    const tempMin = Math.min(...temperatures);
+    const tempMax = Math.max(...temperatures);
+    const tempAvg = averageArray(temperatures);
+    const feelsLikeAvg = averageArray(feelsLike);
+    const humidityAvg = averageArray(humidity);
+    const totalPrecip = sumArray(precipitation);
+    const totalRain = sumArray(rain);
+    const totalShowers = sumArray(showers);
+    const totalSnow = sumArray(snowfall);
+    const maxRain = Math.max(...rain);
+    const avgWind = averageArray(windSpeeds);
+    const maxWind = Math.max(...windSpeeds);
+    const maxPrecipProb = Math.max(...precipProb);
+    const avgDirection = averageDirection(
+      activeDay.points.map((point) => point.wind_direction_10m)
+    );
+    const weatherCodes = activeDay.points.map((point) => point.weather_code);
+    const codeCounts = new Map<number, number>();
+    weatherCodes.forEach((code) => {
+      codeCounts.set(code, (codeCounts.get(code) || 0) + 1);
+    });
+    let mostCommonCode = weatherCodes[0];
+    let maxCount = 0;
+    codeCounts.forEach((count, code) => {
+      if (count > maxCount) {
+        maxCount = count;
+        mostCommonCode = code;
+      }
+    });
+
+    const summaries: ChartSummary[] = [
+      { label: "Weather", value: formatWeatherCode(mostCommonCode) },
+      { label: "Temp min", value: formatTemperature(tempMin) },
+      { label: "Temp max", value: formatTemperature(tempMax) },
+      { label: "Temp avg", value: formatTemperature(tempAvg) },
+      { label: "Feels like avg", value: formatTemperature(feelsLikeAvg) },
+      { label: "Humidity avg", value: formatPercentage(humidityAvg) },
+      { label: "Total precip.", value: formatMillimetres(totalPrecip) },
+      { label: "Total rain", value: formatMillimetres(totalRain) },
+      { label: "Peak rain", value: formatMillimetres(maxRain) },
+      { label: "Max rain prob.", value: formatPercentage(maxPrecipProb) },
+      { label: "Wind avg", value: formatSpeed(avgWind) },
+      { label: "Wind max", value: formatSpeed(maxWind) },
+      { label: "Wind direction", value: formatDirection(avgDirection) },
+    ];
+
+    if (totalShowers > 0) {
+      summaries.splice(8, 0, {
+        label: "Total showers",
+        value: formatMillimetres(totalShowers),
+      });
+    }
+
+    if (totalSnow > 0) {
+      summaries.splice(9, 0, {
+        label: "Total snow",
+        value: formatCentimetres(totalSnow),
+      });
+    }
+
+    return {
+      ...emptySeries,
+      summaries,
+    };
   }, [activeDay, activeHourlyTab]);
+
+  const weatherChartData: WeatherCompositeDatum[] = useMemo(() => {
+    if (!activeDay) {
+      return [];
+    }
+
+    return activeDay.points.map((point) => {
+      const weatherLabel = formatWeatherCode(point.weather_code);
+      const weatherIcon = weatherLabel.split(" ")[0] ?? "•";
+      const aqiValue = point.european_aqi;
+      const aqiLabel = aqiValue != null ? formatAQI(aqiValue) : undefined;
+      const aqiColor = aqiValue != null ? getAQIColor(aqiValue) : undefined;
+      return {
+        label: formatTimeLabel(point.time),
+        temperature: point.temperature_2m,
+        apparent: point.apparent_temperature,
+        precipitation: point.precipitation,
+        precipType: resolvePrecipitationType({
+          precipitation: point.precipitation,
+          rain: point.rain,
+          showers: point.showers,
+          snowfall: point.snowfall,
+        }),
+        probability: point.precipitation_probability,
+        windSpeed: point.wind_speed_10m,
+        aqi: aqiValue ?? undefined,
+        aqiLabel,
+        aqiColor,
+        weatherIcon,
+      };
+    });
+  }, [activeDay]);
+
+  const weatherSummaries: ChartSummary[] = useMemo(() => {
+    if (!activeDay) {
+      return [];
+    }
+
+    const temps = activeDay.points.map((point) => point.temperature_2m);
+    const minTemp = Math.min(...temps);
+    const maxTemp = Math.max(...temps);
+    const totalPrecip = sumArray(
+      activeDay.points.map((point) => point.precipitation)
+    );
+    const maxProbability = Math.max(
+      ...activeDay.points.map((point) => point.precipitation_probability)
+    );
+    const windSpeeds = activeDay.points.map((point) => point.wind_speed_10m);
+    const avgWind = averageArray(windSpeeds);
+    const maxWind = Math.max(...windSpeeds);
+
+    return [
+      {
+        label: "Temp range",
+        value: `${formatTemperature(minTemp)} – ${formatTemperature(maxTemp)}`,
+      },
+      {
+        label: "Total precip.",
+        value: formatMillimetres(totalPrecip),
+      },
+      {
+        label: "Max precip prob.",
+        value: formatPercentage(maxProbability),
+      },
+      { label: "Wind avg", value: formatSpeed(avgWind) },
+      { label: "Wind max", value: formatSpeed(maxWind) },
+    ];
+  }, [activeDay]);
+
+  const rawMinutelyInsights = useMemo<MinutelyInsights | null>(() => {
+    if (!data?.minutely15 || !data.minutely15.time.length) {
+      return null;
+    }
+
+    const now = Date.now();
+    const maxMinutes = 60;
+    const sliceCount = Math.min(
+      data.minutely15.time.length,
+      Math.ceil(maxMinutes / 15)
+    );
+
+    const points: LineChartPoint[] = [];
+    let nextEvent: MinutelyInsights["nextEvent"];
+
+    for (let i = 0; i < sliceCount; i += 1) {
+      const time = data.minutely15.time[i];
+      const precip = data.minutely15.precipitation[i];
+      const rain = data.minutely15.rain[i];
+      const snow = data.minutely15.snowfall[i];
+
+      points.push({
+        label: time.toLocaleTimeString(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
+        value: precip,
+      });
+
+      if (!nextEvent && precip > 0) {
+        const minutesUntil = Math.max(
+          0,
+          Math.round((time.getTime() - now) / 60000)
+        );
+        if (minutesUntil <= maxMinutes) {
+          nextEvent = {
+            minutes: minutesUntil,
+            label: snow > rain ? "Snow" : rain > 0 ? "Rain" : "Precipitation",
+          };
+        }
+      }
+    }
+
+    return {
+      points,
+      nextEvent,
+    };
+  }, [data?.minutely15]);
+
+  const minutelyInsights = useMemo<MinutelyInsights | null>(() => {
+    if (!rawMinutelyInsights || !rawMinutelyInsights.points.length) {
+      return null;
+    }
+
+    const hasRealPrecip = rawMinutelyInsights.points.some(
+      (point) => point.value > 0
+    );
+    if (!hasRealPrecip) {
+      return null;
+    }
+
+    return rawMinutelyInsights;
+  }, [rawMinutelyInsights]);
 
   return (
     <SafeAreaView style={backgroundStyle}>
@@ -553,7 +729,10 @@ function App(): React.JSX.Element {
         barStyle={isDarkMode ? "light-content" : "dark-content"}
         backgroundColor={isDarkMode ? "#000" : "#fff"}
       />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.page}>
           <View style={styles.header}>
             <View style={styles.headerText}>
@@ -698,6 +877,44 @@ function App(): React.JSX.Element {
 
             {location && !loading && data && (
               <View style={styles.contentSpacing}>
+                {minutelyInsights && (
+                  <View style={styles.minutelyCard}>
+                    <Text
+                      style={[
+                        styles.sectionTitle,
+                        isDarkMode && styles.sectionTitleDark,
+                      ]}
+                    >
+                      Next-hour precipitation
+                    </Text>
+                    <Text
+                      style={[
+                        styles.minutelyStatus,
+                        isDarkMode && styles.minutelyStatusDark,
+                      ]}
+                    >
+                      {minutelyInsights.nextEvent
+                        ? `${minutelyInsights.nextEvent.label} expected in ${minutelyInsights.nextEvent.minutes} min`
+                        : "No precipitation expected in the next hour"}
+                    </Text>
+                    {minutelyInsights.points.length > 0 && (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                      >
+                        <LineChart
+                          points={minutelyInsights.points}
+                          color="#0a84ff"
+                          showDots={false}
+                          isDarkMode={isDarkMode}
+                          valueFormatter={formatMillimetres}
+                          variant="bar"
+                        />
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
+
                 <View>
                   <Text
                     style={[
@@ -785,7 +1002,7 @@ function App(): React.JSX.Element {
                     <Text
                       style={[styles.label, isDarkMode && styles.labelDark]}
                     >
-                      Rain
+                      Precipitation
                     </Text>
                     <Text
                       style={[styles.value, isDarkMode && styles.valueDark]}
@@ -793,6 +1010,30 @@ function App(): React.JSX.Element {
                       {formatMillimetres(data.current.precipitation)}
                     </Text>
                   </View>
+                  {PRECIP_TYPE_CONFIG.map((type) => {
+                    const amount = type.accessor(data.current);
+                    if (type.key !== "rain" && amount <= 0) {
+                      return null;
+                    }
+                    return (
+                      <View key={`current-${type.key}`} style={styles.row}>
+                        <Text
+                          style={[styles.label, isDarkMode && styles.labelDark]}
+                        >
+                          {type.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.value,
+                            isDarkMode && styles.valueDark,
+                            { color: type.color },
+                          ]}
+                        >
+                          {type.formatter(amount)}
+                        </Text>
+                      </View>
+                    );
+                  })}
                   {data.current.european_aqi != null && (
                     <View style={styles.row}>
                       <Text
@@ -860,10 +1101,7 @@ function App(): React.JSX.Element {
                   </ScrollView>
 
                   <View
-                    style={[
-                      styles.tabRow,
-                      isDarkMode && styles.tabRowDark,
-                    ]}
+                    style={[styles.tabRow, isDarkMode && styles.tabRowDark]}
                   >
                     {HOURLY_TABS.map((tab) => {
                       const selected = activeHourlyTab === tab.key;
@@ -929,25 +1167,20 @@ function App(): React.JSX.Element {
                         </Text>
                       </View>
                     )
-                  ) : chartSeries.points.length ? (
+                  ) : weatherChartData.length ? (
                     <View style={styles.chartSection}>
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
                       >
-                        <LineChart
-                          points={chartSeries.points}
-                          color={chartSeries.color}
-                          secondaryColor={chartSeries.secondaryColor}
-                          showSecondary={chartSeries.showSecondary}
-                          showDots={chartSeries.showDots}
+                        <WeatherCompositeChart
+                          data={weatherChartData}
                           isDarkMode={isDarkMode}
-                          valueFormatter={chartSeries.formatter}
                         />
                       </ScrollView>
-                      {chartSeries.summaries.length > 0 && (
+                      {weatherSummaries.length > 0 && (
                         <View style={styles.summaryRow}>
-                          {chartSeries.summaries.map((item) => (
+                          {weatherSummaries.map((item) => (
                             <View
                               key={item.label}
                               style={[
@@ -1199,6 +1432,19 @@ const styles = StyleSheet.create({
   contentSpacing: {
     gap: 24,
   },
+  minutelyCard: {
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#d1d1d6",
+  },
+  minutelyStatus: {
+    fontSize: 14,
+    color: "#3a3a3c",
+    marginBottom: 8,
+  },
+  minutelyStatusDark: {
+    color: "#d1d1d6",
+  },
   daySelectorContent: {
     flexDirection: "row",
     gap: 8,
@@ -1296,6 +1542,42 @@ const styles = StyleSheet.create({
   },
   summaryValueDark: {
     color: "#fff",
+  },
+  legendRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 8,
+    gap: 12,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 12,
+    marginBottom: 4,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 6,
+  },
+  legendTextGroup: {
+    flexDirection: "column",
+  },
+  legendLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1c1c1e",
+  },
+  legendLabelDark: {
+    color: "#f2f2f7",
+  },
+  legendDescription: {
+    fontSize: 11,
+    color: "#3a3a3c",
+  },
+  legendDescriptionDark: {
+    color: "#d1d1d6",
   },
   dailyScroll: {
     paddingVertical: 8,

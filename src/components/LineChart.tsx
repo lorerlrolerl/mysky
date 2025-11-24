@@ -2,8 +2,8 @@ import React from "react";
 import { Dimensions, StyleSheet, View } from "react-native";
 import Svg, {
   Circle,
-  Line,
   Polyline,
+  Polygon,
   Rect,
   Text as SvgText,
 } from "react-native-svg";
@@ -12,7 +12,13 @@ export type LineChartPoint = {
   label: string;
   value: number;
   secondary?: number;
+  color?: string;
+  valueLabel?: string;
+  meta?: string;
+  metaColor?: string;
 };
+
+type OverlayScale = "primary" | "percentage";
 
 export type LineChartProps = {
   points: LineChartPoint[];
@@ -23,6 +29,11 @@ export type LineChartProps = {
   showDots?: boolean;
   isDarkMode?: boolean;
   valueFormatter?: (value: number) => string;
+  variant?: "line" | "bar";
+  overlayValues?: number[];
+  overlayColor?: string;
+  overlayOpacity?: number;
+  overlayScale?: OverlayScale;
 };
 
 const defaultFormatter = (value: number) => value.toFixed(1);
@@ -36,6 +47,11 @@ export function LineChart({
   showDots = true,
   isDarkMode = false,
   valueFormatter = defaultFormatter,
+  variant = "line",
+  overlayValues,
+  overlayColor = "#0a84ff",
+  overlayOpacity = 0.25,
+  overlayScale = "primary",
 }: LineChartProps) {
   if (!points.length) {
     return <View style={{ height }} />;
@@ -51,6 +67,7 @@ export function LineChart({
   const width = Math.max(points.length * 72, screenWidth - 64);
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
+  const chartBottom = padding.top + chartHeight;
 
   const primaryValues = points.map((point) => point.value);
   const secondaryValues = showSecondary
@@ -115,8 +132,34 @@ export function LineChart({
         .join(" ")
     : "";
 
-  const axisColor = isDarkMode ? "#3a3a3c" : "#c7c7cc";
+  const overlayEnabled =
+    overlayValues && overlayValues.length === points.length;
+  const overlayPathPoints = overlayEnabled
+    ? (() => {
+        const coords = overlayValues!.map((value, index) => {
+          let overlayY = valueToY(value);
+          if (overlayScale === "percentage") {
+            const clamped = Math.max(0, Math.min(100, value));
+            overlayY = chartBottom - (clamped / 100) * chartHeight;
+          }
+          return `${indexToX(index)},${overlayY}`;
+        });
+        if (coords.length < 2) {
+          return "";
+        }
+        return [
+          coords.join(" "),
+          `${indexToX(points.length - 1)},${chartBottom}`,
+          `${indexToX(0)},${chartBottom}`,
+          coords[0],
+        ].join(" ");
+      })()
+    : "";
+
   const textColor = isDarkMode ? "#d1d1d6" : "#3a3a3c";
+  const barSlotWidth =
+    points.length > 0 ? chartWidth / points.length : chartWidth;
+  const barWidth = Math.max(Math.min(barSlotWidth * 0.6, 36), 16);
 
   return (
     <View style={[styles.chartContainer, { height, width }]}>
@@ -131,7 +174,15 @@ export function LineChart({
           }
           rx={14}
         />
-        {secondaryPolyline.length > 0 && (
+        {overlayPathPoints && (
+          <Polygon
+            points={overlayPathPoints}
+            fill={overlayColor}
+            stroke="none"
+            opacity={overlayOpacity}
+          />
+        )}
+        {variant === "line" && secondaryPolyline.length > 0 && (
           <Polyline
             points={secondaryPolyline}
             fill="none"
@@ -141,49 +192,71 @@ export function LineChart({
             strokeLinejoin="round"
           />
         )}
-        <Polyline
-          points={polyline}
-          fill="none"
-          stroke={color}
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {showDots &&
-          primaryValues.map((value, index) => (
-            <Circle
-              key={`dot-${index}`}
-              cx={indexToX(index)}
-              cy={valueToY(value)}
-              r={4}
-              fill={color}
+        {variant === "line" ? (
+          <>
+            <Polyline
+              points={polyline}
+              fill="none"
+              stroke={color}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-          ))}
-        {showSecondary &&
+            {showDots &&
+              primaryValues.map((value, index) => (
+                <Circle
+                  key={`dot-${index}`}
+                  cx={indexToX(index)}
+                  cy={valueToY(value)}
+                  r={4}
+                  fill={points[index].color ?? color}
+                />
+              ))}
+            {showSecondary &&
+              points.map((point, index) => {
+                if (typeof point.secondary !== "number") {
+                  return null;
+                }
+                return (
+                  <Circle
+                    key={`secondary-dot-${index}`}
+                    cx={indexToX(index)}
+                    cy={valueToY(point.secondary)}
+                    r={3}
+                    fill={secondaryColor}
+                  />
+                );
+              })}
+          </>
+        ) : (
           points.map((point, index) => {
-            if (typeof point.secondary !== "number") {
-              return null;
-            }
+            const x = indexToX(index) - barWidth / 2;
+            const barTop = valueToY(point.value);
+            const barHeight = chartBottom - barTop;
             return (
-              <Circle
-                key={`secondary-dot-${index}`}
-                cx={indexToX(index)}
-                cy={valueToY(point.secondary)}
-                r={3}
-                fill={secondaryColor}
+              <Rect
+                key={`bar-${index}`}
+                x={x}
+                y={barTop}
+                width={barWidth}
+                height={barHeight}
+                fill={point.color ?? color}
+                rx={4}
               />
             );
-          })}
+          })
+        )}
         {points.map((point, index) => {
           const x = indexToX(index);
-          const y = valueToY(point.value);
 
           // Hour label on top
           const hourY = padding.top - 8;
-          // Value label below
           const valueY = padding.top + chartHeight + 24;
-          // Secondary value label (if exists) below primary value
-          const secondaryValueY = padding.top + chartHeight + 38;
+          const metaY = valueY + 14;
+          const secondaryValueY = metaY + (point.meta ? 14 : 0);
+          const primaryColor = point.color ?? color;
+          const metaColor = point.metaColor ?? primaryColor;
+          const valueLabel = point.valueLabel ?? valueFormatter(point.value);
 
           return (
             <React.Fragment key={`labels-${index}`}>
@@ -202,13 +275,25 @@ export function LineChart({
               <SvgText
                 x={x}
                 y={valueY}
-                fill={color}
+                fill={primaryColor}
                 fontSize={11}
                 fontWeight="600"
                 textAnchor="middle"
               >
-                {valueFormatter(point.value)}
+                {valueLabel}
               </SvgText>
+              {point.meta && (
+                <SvgText
+                  x={x}
+                  y={metaY}
+                  fill={metaColor}
+                  fontSize={10}
+                  fontWeight="500"
+                  textAnchor="middle"
+                >
+                  {point.meta}
+                </SvgText>
+              )}
               {/* Secondary value label below primary (if exists) */}
               {showSecondary && typeof point.secondary === "number" && (
                 <SvgText
